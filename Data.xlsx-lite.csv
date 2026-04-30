@@ -1,0 +1,8 @@
+Employee Name,Empno,Cost Center,Supervisor Name,WeekendDate,Month number,Month,HTS T2,Billed Hrs,Capex Hrs,Holiday Paid Leave,Internal Project Hours,Not Approved  Hrs,Admin Hrs,Std Billable Hours,SWC Hrs,Trg Hrs,Vacn Hrs taken,Vula Hrs
+Manoj Kumar,E208657,SC_ENG_AERO_DIGI_SOL,Prasanna Gurajapu,1/4/2026,1/1/2026,Jan,HTS_SC,8,0,8,0,0,0,16,0,0,0,0
+Sibu Narayanan,E274886,SC_ENG_CX_Enablers,Abhijit Upadhyay,1/4/2026,1/1/2026,Jan,HTS_SC,0,0,8,0,0,0,0,0,0,0,0
+Suresh Kumar Yamasani,H644110,SC_ENG_Enterprise_So,Amol Kastwar,1/4/2026,1/1/2026,Jan,HTS_SC,8,0,8,0,0,0,16,0,0,0,0
+Sridhar Awnoory,H624003,SC_ENG_CX_Enablers,Suchitra K,1/4/2026,1/1/2026,Jan,HTS_SC,0,0,8,0,0,0,16,0,0,0,0
+Kovalan Ramana,E824762,SC_ENG_Enterprise_So,PhaniAmmiRaju Pothula,1/4/2026,1/1/2026,Jan,HTS_SC,8.2,0,8,0,0,0,16,0,0,0,0
+Amol Kastwar,E178220,SC_ENG_Enterprise_So,PhaniAmmiRaju Pothula,1/4/2026,1/1/2026,Jan,HTS_SC,8,0,8,0,0,0,16,0,0,0,0
+Aadina Seher,H646103,SC_ENG_CX_Enablers,Sonachalam K,1/4/2026,1/1/2026,Jan,HTS_SC,8,0,8,0,0,0,16,0,0,0,0

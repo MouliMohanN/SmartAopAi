@@ -55,6 +55,7 @@ export default function App() {
             open={trackerOpen}
             onToggle={toggleTracker}
             isLoading={loading}
+            activeMessage={currentStepMsg}
           />
         )}
 

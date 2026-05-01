@@ -5,6 +5,7 @@ interface Props {
   open:          boolean;
   onToggle:      () => void;
   isLoading:     boolean;
+  activeMessage: string | null;
 }
 
 const STEP_LABELS: Record<string, string> = {
@@ -22,7 +23,7 @@ function StepIcon({ status }: { status: StepEntry['status'] }) {
   return                          <span className="step-icon step-icon--error"  aria-label="error">✕</span>;
 }
 
-export function StepTracker({ steps, open, onToggle, isLoading }: Props) {
+export function StepTracker({ steps, open, onToggle, isLoading, activeMessage }: Props) {
   if (steps.length === 0) return null;
 
   const doneCount   = steps.filter(s => s.status === 'done').length;
@@ -48,7 +49,9 @@ export function StepTracker({ steps, open, onToggle, isLoading }: Props) {
             <li key={step.id} className={`step-item step-item--${step.status}`}>
               <StepIcon status={step.status} />
               <span className="step-item-label">
-                {STEP_LABELS[step.id] ?? step.message}
+                {step.status === 'active' && activeMessage
+                  ? activeMessage
+                  : (STEP_LABELS[step.id] ?? step.message)}
               </span>
             </li>
           ))}

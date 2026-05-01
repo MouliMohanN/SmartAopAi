@@ -5,10 +5,70 @@
 // query results, and narrative explanation.
 // -----------------------------------------------------------------------------
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { streamQuery } from '../api';
 import type { StepStatus } from '../api';
 import type { QueryResponse } from '../types';
+
+// Rotated while the LLM is writing SQL — gives the user meaningful progress
+// feedback during the longest step instead of a static "Writing SQL query…".
+const SQL_THINKING_MESSAGES = [
+  'Thinking…',
+  'Still thinking…',
+  'Almost there…',
+  'Working on it…',
+  'Bear with us…',
+  'Just a moment…',
+  'This one needs some thought…',
+  'Taking a bit longer than usual…',
+  'Hang tight…',
+  'On it…',
+  'Give us a sec…',
+  'Processing…',
+  'Crunching the details…',
+  'Figuring it out…',
+  'Loading the brain cells…',
+  'Good things take time…',
+  'Making progress…',
+  'Getting there…',
+  'Doing the hard work…',
+  'Putting the pieces together…',
+  'Nearly done…',
+  'Connecting the dots…',
+  'In the zone…',
+  'Deep in thought…',
+  'Running the numbers…',
+  'Hold on a moment…',
+  'Working through this…',
+  'Don\'t go anywhere…',
+  'Stay with us…',
+  'Chewing on this one…',
+  'Pondering…',
+  'One moment please…',
+  'Taking it step by step…',
+  'Cooking something up…',
+  'This is a tricky one…',
+  'Patience is a virtue…',
+  'Wheels are turning…',
+  'In progress…',
+  'Coming right up…',
+  'Spinning up the gears…',
+  'Focused and working…',
+  'Reading the question carefully…',
+  'Taking the scenic route…',
+  'Squeezing out the answer…',
+  'Worth the wait, promise…',
+  'Your answer is brewing…',
+  'Digging deep…',
+  'Not giving up…',
+  'Pushing through…',
+  'Almost cracked it…',
+];
+
+function pickOther(messages: string[], current: string | null): string {
+  const pool = current ? messages.filter(m => m !== current) : messages;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
 
 export type { StepStatus };
 
@@ -48,6 +108,8 @@ export function useStream() {
   const [steps,            setSteps]            = useState<StepEntry[]>([]);
   const [currentStepMsg,   setCurrentStepMsg]   = useState<string | null>(null);
   const [trackerOpen,      setTrackerOpen]      = useState<boolean>(readTrackerPref);
+  const sqlRotatorRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sqlStreamStarted = useRef(false);
 
   const toggleTracker = useCallback(() => {
     setTrackerOpen(prev => {
@@ -58,6 +120,10 @@ export function useStream() {
   }, []);
 
   const submit = useCallback(async (query: string) => {
+    if (sqlRotatorRef.current) {
+      clearTimeout(sqlRotatorRef.current);
+      sqlRotatorRef.current = null;
+    }
     setStatus('loading');
     setSql(null);
     setResult(null);
@@ -67,14 +133,31 @@ export function useStream() {
     setLastQuery(query);
     setSteps([]);
     setCurrentStepMsg(null);
+    sqlStreamStarted.current = false;
 
     try {
       await streamQuery(query, {
         onStep: (stepId, stepStatus, message) => {
           if (stepStatus === 'active') {
-            setCurrentStepMsg(message ?? null);
+            if (stepId === 'generating_sql') {
+              // Kick off rotating messages for the slow SQL generation step
+              const first = pickOther(SQL_THINKING_MESSAGES, null);
+              setCurrentStepMsg(first);
+
+              const schedule = (current: string) => {
+                const delay = 3000 + Math.random() * 4000; // 3–7 s
+                sqlRotatorRef.current = setTimeout(() => {
+                  const next = pickOther(SQL_THINKING_MESSAGES, current);
+                  setCurrentStepMsg(next);
+                  schedule(next);
+                }, delay);
+              };
+              schedule(first);
+            } else {
+              setCurrentStepMsg(message ?? null);
+            }
+
             setSteps(prev => {
-              // replace if already present (shouldn't happen), else append
               const exists = prev.some(s => s.id === stepId);
               const entry: StepEntry = { id: stepId, message: message ?? stepId, status: 'active' };
               return exists
@@ -82,6 +165,13 @@ export function useStream() {
                 : [...prev, entry];
             });
           } else {
+            if (stepId === 'generating_sql') {
+              // Stop the rotator as soon as SQL is done
+              if (sqlRotatorRef.current) {
+                clearTimeout(sqlRotatorRef.current);
+                sqlRotatorRef.current = null;
+              }
+            }
             setCurrentStepMsg(null);
             setSteps(prev =>
               prev.map(s => s.id === stepId ? { ...s, status: stepStatus } : s)
@@ -89,7 +179,17 @@ export function useStream() {
           }
         },
 
-        onSqlToken: (token) => setSql(prev => (prev ?? '') + token),
+        onSqlToken: (token) => {
+          if (!sqlStreamStarted.current) {
+            sqlStreamStarted.current = true;
+            if (sqlRotatorRef.current) {
+              clearTimeout(sqlRotatorRef.current);
+              sqlRotatorRef.current = null;
+            }
+            setCurrentStepMsg(null);
+          }
+          setSql(prev => (prev ?? '') + token);
+        },
 
         onSqlDone: (cleanSql) => setSql(cleanSql),
 
@@ -126,12 +226,20 @@ export function useStream() {
         },
 
         onError: (message) => {
+          if (sqlRotatorRef.current) {
+            clearTimeout(sqlRotatorRef.current);
+            sqlRotatorRef.current = null;
+          }
           setError(message);
           setStatus('error');
           setNarrativeDone(true);
         },
       });
     } catch (e: unknown) {
+      if (sqlRotatorRef.current) {
+        clearTimeout(sqlRotatorRef.current);
+        sqlRotatorRef.current = null;
+      }
       setError(e instanceof Error ? e.message : 'An unexpected error occurred.');
       setStatus('error');
       setNarrativeDone(true);

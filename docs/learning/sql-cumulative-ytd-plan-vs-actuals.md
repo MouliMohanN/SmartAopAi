@@ -243,6 +243,32 @@ No fan-out — actuals and plan are each aggregated in their own CTE before bein
 
 ---
 
+## 5. The "Aero Total" Row — Pre-computed Summary in t2_plan
+
+The `t2_plan` table contains a special row where `hts_t2 = 'Aero Total'`. This is not a real T2 group — it is a pre-computed company-wide total that the source Excel sheet includes for convenience.
+
+| hts_t2 | month | t2_std_hrs | t2_planned_hrs |
+|---|---|---|---|
+| HTS_AAT | Jan | 80 | 65 |
+| HTS_CS | Jan | 120 | 105 |
+| ... | ... | ... | ... |
+| **Aero Total** | **Jan** | **96** | **72** |  ← already the sum of all above
+
+### Why this matters
+
+If you query "overall YTD utilization" and your plan CTE sums ALL rows in `t2_plan`, you include both the individual T2 rows AND the Aero Total row — **double-counting the entire company's plan**.
+
+### The rule
+
+| Query type | t2_plan filter |
+|---|---|
+| Overall / company-wide | `WHERE hts_t2 = 'Aero Total'` — use the pre-built total |
+| T2-level breakdown | `WHERE hts_t2 != 'Aero Total'` — exclude the summary row |
+
+This applies to actuals too in spirit — actuals don't have an "Aero Total" row so you just `SUM()` everything without a `hts_t2` filter for overall queries.
+
+---
+
 ## Summary of All Four Query Patterns
 
 | Pattern | actuals CTE | plan CTE | JOIN key |

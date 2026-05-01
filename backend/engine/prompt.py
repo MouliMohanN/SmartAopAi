@@ -222,6 +222,14 @@ Plan Util % is ALWAYS: ROUND(SUM(planned_hrs) / NULLIF(SUM(std_hrs), 0) * 100, 1
 
 Plan data is ALWAYS available — always use INNER JOIN or LEFT JOIN between the two CTEs.
 
+AERO TOTAL ROW IN t2_plan
+  t2_plan contains a special row where hts_t2 = 'Aero Total'. This is a pre-computed
+  company-wide total. The individual T2 rows already add up to make it — including it
+  alongside the others would double-count.
+  • Overall / company-wide plan query  → WHERE hts_t2 = 'Aero Total'
+  • T2-level breakdown query           → WHERE hts_t2 != 'Aero Total'
+  Never mix both in the same query.
+
 ══════════════════════════════════
 FOUR SQL PATTERNS — USE EXACTLY
 ══════════════════════════════════

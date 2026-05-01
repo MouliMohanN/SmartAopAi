@@ -462,3 +462,203 @@ body {
   font-style: italic;
 }
 
+/* ── Step tracker ──────────────────────────────────────────────── */
+.step-tracker {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.step-tracker-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 9px 14px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.step-tracker-toggle:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.step-tracker-summary {
+  letter-spacing: 0.2px;
+}
+
+.step-tracker-chevron {
+  display: inline-block;
+  font-size: 14px;
+  line-height: 1;
+  transition: transform 0.2s;
+  transform: rotate(90deg);
+}
+
+.step-tracker-chevron--open {
+  transform: rotate(-90deg);
+}
+
+.step-tracker-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0 8px 0;
+  border-top: 1px solid var(--border);
+}
+
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 14px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.step-item--done  { color: var(--text-secondary, #a1a1aa); }
+.step-item--error { color: #f87171; }
+
+.step-icon {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 50%;
+}
+
+.step-icon--done {
+  background: rgba(99, 220, 130, 0.15);
+  color: #63dc82;
+}
+
+.step-icon--error {
+  background: rgba(248, 113, 113, 0.15);
+  color: #f87171;
+}
+
+.step-icon--active {
+  border: 2px solid var(--accent);
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.step-item-label {
+  letter-spacing: 0.1px;
+}
+
+/* ── SQL Panel ─────────────────────────────────────────────────── */
+.sql-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.sql-panel-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 14px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  transition: background 0.15s;
+}
+
+.sql-panel-toggle:hover {
+  background: #f8fafc;
+  color: var(--text);
+}
+
+.sql-panel-icon {
+  font-size: 11px;
+  width: 12px;
+  text-align: center;
+}
+
+.sql-panel-label {
+  font-family: ui-monospace, Consolas, monospace;
+  letter-spacing: 0.2px;
+}
+
+.sql-panel-body {
+  padding: 0 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sql-copy-btn {
+  align-self: flex-end;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent);
+  background: white;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.sql-copy-btn:hover {
+  background: #eef2ff;
+}
+
+/* ── Narrative panel ───────────────────────────────────────────── */
+.narrative-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.narrative-icon {
+  font-size: 13px;
+  color: var(--accent);
+}
+
+.narrative-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-muted);
+}
+
+/* Blinking cursor that appears while narrative is still streaming */
+.narrative-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: var(--accent);
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  border-radius: 1px;
+  animation: blink 0.8s step-end infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}

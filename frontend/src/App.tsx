@@ -1,14 +1,22 @@
 import { useEffect, useState } from 'react';
-import { useQuery } from './hooks/useQuery';
-import { QueryInput } from './components/QueryInput';
-import { ResultTable } from './components/ResultTable';
-import { ResultChart } from './components/ResultChart';
-import { ResultSkeleton } from './components/ResultSkeleton';
-import { ExplainButton } from './components/ExplainButton';
+import { useStream }       from './hooks/useStream';
+import { QueryInput }      from './components/QueryInput';
+import { ResultTable }     from './components/ResultTable';
+import { ResultChart }     from './components/ResultChart';
+import { ResultSkeleton }  from './components/ResultSkeleton';
+import { SqlPanel }        from './components/SqlPanel';
+import { NarrativePanel }  from './components/NarrativePanel';
+import { StepTracker }     from './components/StepTracker';
 import './index.css';
 
 export default function App() {
-  const { result, loading, error, lastQuery, submit } = useQuery();
+  const {
+    sql, result, narrative, narrativeDone,
+    error, loading,
+    steps, currentStepMsg, trackerOpen, toggleTracker,
+    submit,
+  } = useStream();
+
   const [initialQuery, setInitialQuery] = useState('');
 
   useEffect(() => {
@@ -37,13 +45,24 @@ export default function App() {
           </div>
         )}
 
-        {loading && <ResultSkeleton />}
+        {loading && <ResultSkeleton message={currentStepMsg} />}
+
+        {sql && <SqlPanel sql={sql} />}
+
+        {steps.length > 0 && (
+          <StepTracker
+            steps={steps}
+            open={trackerOpen}
+            onToggle={toggleTracker}
+            isLoading={loading}
+          />
+        )}
 
         {!loading && result && !result.error && (
           <div className="result-section slide-in">
             <ResultChart result={result} />
             <ResultTable result={result} />
-            <ExplainButton query={lastQuery} rows={result.rows} />
+            <NarrativePanel text={narrative} done={narrativeDone} />
           </div>
         )}
       </main>

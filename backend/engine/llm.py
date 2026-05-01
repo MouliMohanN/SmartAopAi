@@ -4,9 +4,13 @@
 # Ollama is a tool that runs AI language models locally on your machine.
 # This file acts as the "bridge" between our application and Ollama.
 #
-# Two functions are exposed:
-#   generate_sql()      — for NL → SQL conversion (POST /query)
-#   generate_response() — for free-form text generation (POST /explain)
+# Sync functions (used by legacy /query and /explain endpoints):
+#   generate_sql()        — NL → SQL conversion, waits for full response
+#   generate_response()   — free-form text generation, waits for full response
+#
+# Async streaming generators (used by the new /stream endpoint):
+#   stream_sql()          — yields accumulated SQL once fully generated
+#   stream_narrative()    — yields text tokens one by one for real-time display
 #
 # CONFIGURATION (set in .env):
 #   OLLAMA_BASE_URL — where Ollama is running (default: http://localhost:11434)
@@ -16,7 +20,9 @@
 
 import os
 import re
+import json
 import httpx
+from typing import AsyncGenerator
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -137,6 +143,97 @@ def generate_response(system_prompt: str, user_message: str) -> str:
         )
 
     return response.json()["message"]["content"].strip()
+
+
+# ── Async streaming generators ────────────────────────────────────────────────
+# Used exclusively by the new POST /stream endpoint.
+# These use httpx.AsyncClient with stream=True to receive Ollama tokens
+# as they are generated rather than waiting for the full response.
+
+
+async def stream_sql(system_prompt: str, user_query: str) -> AsyncGenerator[str, None]:
+    """
+    Streams the SQL generation from Ollama token by token.
+
+    Unlike generate_sql(), this is an async generator — it yields each raw
+    text token as it arrives. The caller is responsible for accumulating
+    the tokens into a final SQL string (SQL must be complete before it can
+    be validated and executed).
+
+    Raises RuntimeError if Ollama is unreachable or times out.
+    """
+    payload = {
+        "model":  OLLAMA_MODEL,
+        "stream": True,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user",   "content": f"Generate a DuckDB SQL query for: {user_query}"},
+        ],
+    }
+    try:
+        async with httpx.AsyncClient(timeout=OLLAMA_TIMEOUT) as client:
+            async with client.stream("POST", f"{OLLAMA_BASE_URL}/api/chat", json=payload) as resp:
+                resp.raise_for_status()
+                async for line in resp.aiter_lines():
+                    if not line.strip():
+                        continue
+                    chunk = json.loads(line)
+                    token = chunk.get("message", {}).get("content", "")
+                    if token:
+                        yield token
+                    if chunk.get("done"):
+                        break
+    except httpx.ConnectError:
+        raise RuntimeError(
+            f"Cannot connect to Ollama at {OLLAMA_BASE_URL}. "
+            f"Make sure Ollama is running (run 'ollama serve' in a terminal)."
+        )
+    except httpx.TimeoutException:
+        raise RuntimeError(
+            f"Ollama did not respond within {int(OLLAMA_TIMEOUT)} seconds. "
+            f"The model may still be loading — try again in a moment."
+        )
+
+
+async def stream_narrative(system_prompt: str, user_message: str) -> AsyncGenerator[str, None]:
+    """
+    Streams the narrative generation from Ollama token by token.
+
+    Unlike generate_response(), this yields each text token as it arrives
+    so the frontend can display the narrative progressively in real-time.
+
+    Raises RuntimeError if Ollama is unreachable or times out.
+    """
+    payload = {
+        "model":  OLLAMA_MODEL,
+        "stream": True,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user",   "content": user_message},
+        ],
+    }
+    try:
+        async with httpx.AsyncClient(timeout=OLLAMA_TIMEOUT) as client:
+            async with client.stream("POST", f"{OLLAMA_BASE_URL}/api/chat", json=payload) as resp:
+                resp.raise_for_status()
+                async for line in resp.aiter_lines():
+                    if not line.strip():
+                        continue
+                    chunk = json.loads(line)
+                    token = chunk.get("message", {}).get("content", "")
+                    if token:
+                        yield token
+                    if chunk.get("done"):
+                        break
+    except httpx.ConnectError:
+        raise RuntimeError(
+            f"Cannot connect to Ollama at {OLLAMA_BASE_URL}. "
+            f"Make sure Ollama is running (run 'ollama serve' in a terminal)."
+        )
+    except httpx.TimeoutException:
+        raise RuntimeError(
+            f"Ollama did not respond within {int(OLLAMA_TIMEOUT)} seconds."
+        )
 
 
 def check_ollama_reachable() -> bool:

@@ -18,6 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.api.routes.query  import router as query_router
 from backend.api.routes.health import router as health_router
+from backend.api.routes.stream import router as stream_router
 
 # Create the FastAPI application
 app = FastAPI(
@@ -42,10 +43,12 @@ app.add_middleware(
 
 # ── Register Routes ───────────────────────────────────────────────────────────
 # Each router handles a group of related endpoints.
-# - query_router  → POST /query, POST /explain
+# - query_router  → POST /query, POST /explain  (legacy, kept for backward compat)
+# - stream_router → POST /stream                (unified streaming endpoint)
 # - health_router → GET /health
 
 app.include_router(query_router)
+app.include_router(stream_router)
 app.include_router(health_router)
 
 

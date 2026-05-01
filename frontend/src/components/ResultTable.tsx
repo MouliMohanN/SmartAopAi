@@ -91,13 +91,6 @@ export function ResultTable({ result }: Props) {
         </table>
       </div>
 
-      {/* ── SQL disclosure ── */}
-      {sql && (
-        <details className="sql-details">
-          <summary>Generated SQL</summary>
-          <pre className="sql-code">{sql}</pre>
-        </details>
-      )}
     </div>
   );
 }

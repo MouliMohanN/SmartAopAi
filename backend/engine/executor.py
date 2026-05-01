@@ -20,7 +20,7 @@
 import duckdb
 
 
-def _detect_chart_hint(columns: list[str], rows: list[dict]) -> str | None:
+def detect_chart_hint(columns: list[str], rows: list[dict]) -> str | None:
     """
     Looks at the result shape and returns a suggested chart type.
 
@@ -67,7 +67,7 @@ def _detect_chart_hint(columns: list[str], rows: list[dict]) -> str | None:
     return None
 
 
-def _check_plan_available(columns: list[str], rows: list[dict]) -> bool:
+def check_plan_available(columns: list[str], rows: list[dict]) -> bool:
     """
     Checks whether plan data was included in the result and has actual values.
 
@@ -92,6 +92,15 @@ def _check_plan_available(columns: list[str], rows: list[dict]) -> bool:
     return False
 
 
+def execute_sql(sql: str, conn: duckdb.DuckDBPyConnection) -> tuple[list[str], list[dict]]:
+    """Runs SQL and returns (columns, rows) with no further analysis."""
+    result   = conn.execute(sql)
+    columns  = [desc[0] for desc in result.description]
+    raw_rows = result.fetchall()
+    rows     = [dict(zip(columns, row)) for row in raw_rows]
+    return columns, rows
+
+
 def run_query(sql: str, conn: duckdb.DuckDBPyConnection) -> dict:
     """
     Executes the SQL query and returns a structured result dictionary.
@@ -100,28 +109,20 @@ def run_query(sql: str, conn: duckdb.DuckDBPyConnection) -> dict:
     conn — an open DuckDB connection
 
     Returns a dict with:
-      columns       — list of column name strings
-      rows          — list of row dicts (column name → value)
-      row_count     — total number of rows returned
-      chart_hint    — suggested chart type: "line", "bar", "pie", or null
+      columns        — list of column name strings
+      rows           — list of row dicts (column name → value)
+      row_count      — total number of rows returned
+      chart_hint     — suggested chart type: "line", "bar", "pie", or null
       plan_available — True if plan data was found, False if all plan values are NULL
     """
-    result = conn.execute(sql)
-
-    # Get column names from the result metadata
-    columns = [desc[0] for desc in result.description]
-
-    # Fetch all rows and pair each value with its column name
-    raw_rows = result.fetchall()
-    rows = [dict(zip(columns, row)) for row in raw_rows]
-
-    chart_hint     = _detect_chart_hint(columns, rows)
-    plan_available = _check_plan_available(columns, rows)
+    columns, rows  = execute_sql(sql, conn)
+    chart_hint     = detect_chart_hint(columns, rows)
+    plan_available = check_plan_available(columns, rows)
 
     return {
-        "columns":       columns,
-        "rows":          rows,
-        "row_count":     len(rows),
-        "chart_hint":    chart_hint,
+        "columns":        columns,
+        "rows":           rows,
+        "row_count":      len(rows),
+        "chart_hint":     chart_hint,
         "plan_available": plan_available,
     }

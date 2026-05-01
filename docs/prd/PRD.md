@@ -108,6 +108,8 @@ Utilization data is available weekly in Excel. Managers, supervisors, and busine
 
 ### Plan Metrics
 
+Plan exists **only for Util%** — there is no plan for raw hour metrics (Billed Hours, Capital Hours, etc.).
+
 | Metric | Formula | Source |
 |---|---|---|
 | CC Plan Util % | CC Planned Hrs / CC Std Hrs | cc_plan |
@@ -115,11 +117,15 @@ Utilization data is available weekly in Excel. Managers, supervisors, and busine
 
 ### Variance (Plan vs Actual)
 
+Applies **only to Util%**. Variance on raw hour metrics is not supported.
+
 - **Definition:** Absolute — `Actual Util% − Plan Util%`
 - **At Employee / Supervisor level** → maps to `cc_plan` via `Cost Center + Month`
 - **At Cost Center level** → maps to `cc_plan` via `Cost Center + Month`
 - **At HTS T2 level** → maps to `t2_plan` via `HTS_T2 + Month`
-- **At Week level** → actuals and plan for any time frame based on the user query
+- **At Week level (CC dimension)** → use `cc_plan` for `Cost Center + Month`; the monthly plan value is shown as-is alongside each week's actual Util%
+- **At Week level (T2 dimension)** → use `t2_plan` for `HTS_T2 + Month`; the monthly plan value is shown as-is alongside each week's actual Util%
+- **At Week level (raw hours)** → no plan exists; actuals only
 - **Missing plan entry** → return actuals with a "no plan available" indicator
 
 ---
@@ -130,7 +136,7 @@ Queries must work at all of the following levels:
 
 | Dimension | Actuals | Plan | Variance |
 |---|---|---|---|
-| Weekly | Yes | Via CC Plan or T2 Plan based on query | Yes |
+| Weekly | Yes | CC/T2 monthly plan shown as-is per week (Util% only) | Yes (Util% only, at CC or T2 dimension) |
 | Monthly | Yes | Yes | Yes |
 | Employee | Yes | Via CC Plan | Yes |
 | Supervisor | Yes | Via CC Plan | Yes |

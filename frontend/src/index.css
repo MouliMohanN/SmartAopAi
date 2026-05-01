@@ -1,4 +1,8 @@
-*, *::before, *::after { box-sizing: border-box; }
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
 
 :root {
   --bg: #f8f9fa;
@@ -22,7 +26,9 @@
   background: var(--bg);
 }
 
-body { margin: 0; }
+body {
+  margin: 0;
+}
 
 /* ── Layout ────────────────────────────────────────────────────── */
 .app {
@@ -32,26 +38,28 @@ body { margin: 0; }
 }
 
 .app-header {
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  padding: 24px 32px 20px;
+  background: linear-gradient(135deg, #1e1b4b 0%, #3730a3 60%, #4f46e5 100%);
+  border-bottom: none;
+  padding: 16px 32px 14px;
   text-align: center;
 }
 
 .app-title {
-  margin: 0 0 4px;
-  font-size: 28px;
+  margin: 0 0 6px;
+  font-size: 30px;
   font-weight: 700;
   letter-spacing: -0.5px;
-  color: var(--text);
+  color: #ffffff;
 }
 
-.app-title-accent { color: var(--accent); }
+.app-title-accent {
+  color: #c4b5fd;
+}
 
 .app-subtitle {
   margin: 0;
   font-size: 14px;
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.75);
 }
 
 .app-main {
@@ -59,13 +67,73 @@ body { margin: 0; }
   max-width: 1100px;
   width: 100%;
   margin: 0 auto;
-  padding: 32px 24px;
+  padding: 28px 24px 48px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
 }
 
-/* ── Query input ───────────────────────────────────────────────── */
+/* ── Query section ─────────────────────────────────────────────── */
+.query-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.suggestions-label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-muted);
+}
+
+/* ── Suggestion cards ──────────────────────────────────────────── */
+.suggestions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.suggestion-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+
+.suggestion-card:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: #fafafe;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.10);
+}
+
+.suggestion-card:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.suggestion-card-icon {
+  font-size: 18px;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.suggestion-card-label {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.4;
+  font-weight: 400;
+}
+
 .query-form {
   display: flex;
   gap: 10px;
@@ -73,7 +141,7 @@ body { margin: 0; }
 
 .query-input {
   flex: 1;
-  padding: 12px 16px;
+  padding: 13px 16px;
   font-size: 15px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -88,7 +156,9 @@ body { margin: 0; }
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
 }
 
-.query-input::placeholder { color: var(--text-muted); }
+.query-input::placeholder {
+  color: var(--text-muted);
+}
 
 .query-submit {
   padding: 12px 24px;
@@ -103,8 +173,14 @@ body { margin: 0; }
   transition: background 0.15s;
 }
 
-.query-submit:hover:not(:disabled) { background: var(--accent-hover); }
-.query-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+.query-submit:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.query-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
 /* ── Error banner ──────────────────────────────────────────────── */
 .error-banner {
@@ -131,8 +207,8 @@ body { margin: 0; }
   padding: 20px 16px 12px;
 }
 
-/* ── Table ─────────────────────────────────────────────────────── */
-.result-table-wrapper {
+/* ── Result card ───────────────────────────────────────────────── */
+.result-card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -173,7 +249,9 @@ body { margin: 0; }
   color: var(--badge-plan-text);
 }
 
-.table-scroll { overflow-x: auto; }
+.table-scroll {
+  overflow-x: auto;
+}
 
 .result-table {
   width: 100%;
@@ -200,8 +278,13 @@ body { margin: 0; }
   color: var(--text);
 }
 
-.result-table tbody tr:last-child td { border-bottom: none; }
-.result-table tbody tr:hover td { background: #f8fafc; }
+.result-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.result-table tbody tr:hover td {
+  background: #f8fafc;
+}
 
 /* ── SQL disclosure ────────────────────────────────────────────── */
 .sql-details {
@@ -250,8 +333,14 @@ body { margin: 0; }
   transition: background 0.15s;
 }
 
-.btn-secondary:hover:not(:disabled) { background: #eef2ff; }
-.btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-secondary:hover:not(:disabled) {
+  background: #eef2ff;
+}
+
+.btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
 .narrative-wrapper {
   background: var(--surface);
@@ -275,3 +364,101 @@ body { margin: 0; }
   font-size: 13px;
   color: var(--danger);
 }
+
+/* ── Metric tiles ──────────────────────────────────────────────── */
+.metric-tiles {
+  display: flex;
+  gap: 12px;
+  padding: 16px 16px 0;
+  flex-wrap: wrap;
+}
+
+.metric-tile {
+  flex: 1;
+  min-width: 120px;
+  background: linear-gradient(135deg, #f8faff 0%, #eef2ff 100%);
+  border: 1px solid #e0e7ff;
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.metric-tile--rows {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-color: var(--border);
+}
+
+.metric-tile-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1.1;
+}
+
+.metric-tile--rows .metric-tile-value {
+  color: var(--text);
+}
+
+.metric-tile-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+
+/* ── Slide-in animation ────────────────────────────────────────── */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.slide-in {
+  animation: slideIn 0.35s ease forwards;
+}
+
+/* ── Skeleton loader ───────────────────────────────────────────── */
+.skeleton-stages {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.skeleton-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.4;
+    transform: scale(0.8);
+  }
+}
+
+.skeleton-stage-text {
+  font-size: 14px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+

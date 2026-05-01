@@ -3,14 +3,14 @@ import { useQuery } from './hooks/useQuery';
 import { QueryInput } from './components/QueryInput';
 import { ResultTable } from './components/ResultTable';
 import { ResultChart } from './components/ResultChart';
+import { ResultSkeleton } from './components/ResultSkeleton';
 import { ExplainButton } from './components/ExplainButton';
 import './index.css';
 
 export default function App() {
   const { result, loading, error, lastQuery, submit } = useQuery();
-
-  // Read ?q= URL param on first mount to support webapp deep-link integration
   const [initialQuery, setInitialQuery] = useState('');
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const q = params.get('q');
@@ -37,8 +37,10 @@ export default function App() {
           </div>
         )}
 
-        {result && !result.error && (
-          <div className="result-section">
+        {loading && <ResultSkeleton />}
+
+        {!loading && result && !result.error && (
+          <div className="result-section slide-in">
             <ResultChart result={result} />
             <ResultTable result={result} />
             <ExplainButton query={lastQuery} rows={result.rows} />

@@ -1,4 +1,4 @@
-# SmartAopAi — Setup Guide
+# SmartAopAi — Setup & Run Guide
 
 ## Hardware Requirements
 
@@ -24,7 +24,7 @@
 | Git | Any | Version control | `brew install git` | [git-scm.com](https://git-scm.com) |
 | Homebrew | Latest | Mac package manager | [brew.sh](https://brew.sh) | — |
 
-### Python packages (installed via pip into `.venv`)
+### Python packages (`requirements.txt`)
 
 | Package | Purpose |
 |---|---|
@@ -37,7 +37,7 @@
 | `httpx` | HTTP client for Ollama API calls |
 | `pydantic` | Request/response validation |
 
-### Frontend packages (installed via npm)
+### Frontend packages (npm)
 
 | Package | Purpose |
 |---|---|
@@ -48,31 +48,52 @@
 
 ---
 
-## Mac
+## Project Structure (quick reference)
 
-### 1. Clone the repository
+```
+SmartAopAi/
+├── backend/
+│   ├── ingest/          # Excel → DuckDB pipeline
+│   ├── engine/          # NL→SQL, LLM, validator, executor
+│   └── api/             # FastAPI routes (/query, /explain, /health)
+├── data/
+│   ├── inputFile/       # Drop your .xlsx file here (INGEST_DIR)
+│   └── smartaop.duckdb  # Auto-created by the ingest step
+├── frontend/            # React + Vite app
+├── .env                 # Local config (not committed)
+├── .env.example         # Template — copy this to .env
+└── requirements.txt     # Python dependencies
+```
+
+---
+
+## One-time Setup
+
+### Mac
+
+#### 1. Clone the repository
 
 ```bash
 git clone <repo-url>
 cd SmartAopAi
 ```
 
-### 2. Python virtual environment
+#### 2. Python virtual environment
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-> You must activate the venv each time you open a new terminal before running any backend commands.
+> You must activate the venv every time you open a new terminal before running backend commands.
 
-### 3. Install Python dependencies
+#### 3. Install Python dependencies
 
 ```bash
-pip install duckdb pandas openpyxl fastapi uvicorn python-dotenv httpx pydantic
+pip install -r requirements.txt
 ```
 
-### 4. Install frontend dependencies
+#### 4. Install frontend dependencies
 
 ```bash
 cd frontend
@@ -80,82 +101,67 @@ npm install
 cd ..
 ```
 
-### 5. Pull the LLM model
+#### 5. Configure environment
 
-```bash
-ollama pull qwen2.5-coder:32b
-```
-
-> This downloads ~20 GB. Requires Ollama to be running (`ollama serve` or launch the Ollama desktop app).
-
-### 6. Configure environment
+The `.env.example` file is the template. Copy it and it will work as-is for a standard local setup:
 
 ```bash
 cp .env.example .env
 ```
 
-Open `.env` and set:
+Your `.env` should look like this:
 
 ```
-INGEST_DIR=/absolute/path/to/your/xlsx/drop/folder
+INGEST_DIR=./data/inputFile
 DB_PATH=./data/smartaop.duckdb
+
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=qwen2.5-coder:32b
+OLLAMA_TIMEOUT=120
 ```
 
-### 7. Run the ingest
+> `INGEST_DIR` is where you drop the weekly `.xlsx` file. The path above is relative to the project root — it already exists in the repo.
 
-Place the `.xlsx` file in your `INGEST_DIR` folder, then:
+#### 6. Pull the LLM model
+
+Make sure Ollama is running (launch the Ollama desktop app or run `ollama serve` in a terminal), then:
 
 ```bash
-python -m backend.ingest.ingest
+ollama pull qwen2.5-coder:32b
 ```
 
-### 8. Start the backend
-
-```bash
-uvicorn backend.api.main:app --reload --port 8000
-```
-
-### 9. Start the frontend
-
-```bash
-cd frontend
-npm run dev
-```
-
-App will be available at `http://localhost:5173`.
+> This downloads ~20 GB. It only needs to be done once.
 
 ---
 
-## Windows
+### Windows
 
-### 1. Clone the repository
+#### 1. Clone the repository
 
 ```powershell
 git clone <repo-url>
 cd SmartAopAi
 ```
 
-### 2. Python virtual environment
+#### 2. Python virtual environment
 
 ```powershell
 python -m venv .venv
 .venv\Scripts\activate
 ```
 
-> If you get an execution policy error, run this first (once):
+> If you get an execution policy error, run this once:
 > ```powershell
 > Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 > ```
 
-> You must activate the venv each time you open a new terminal before running any backend commands.
-
-### 3. Install Python dependencies
+#### 3. Install Python dependencies
 
 ```powershell
-pip install duckdb pandas openpyxl fastapi uvicorn python-dotenv httpx pydantic
+pip install -r requirements.txt
 ```
 
-### 4. Install frontend dependencies
+#### 4. Install frontend dependencies
 
 ```powershell
 cd frontend
@@ -163,75 +169,133 @@ npm install
 cd ..
 ```
 
-### 5. Pull the LLM model
-
-Open a new terminal and start Ollama:
-
-```powershell
-ollama serve
-```
-
-In another terminal, pull the model:
-
-```powershell
-ollama pull qwen2.5-coder:32b
-```
-
-> This downloads ~20 GB.
-
-### 6. Configure environment
+#### 5. Configure environment
 
 ```powershell
 copy .env.example .env
 ```
 
-Open `.env` in any text editor and set:
+Open `.env` in any text editor. The defaults work as-is. If you want to use an absolute path for `INGEST_DIR` on Windows:
 
 ```
-INGEST_DIR=C:\absolute\path\to\your\xlsx\drop\folder
-DB_PATH=./data/smartaop.duckdb
+INGEST_DIR=C:\path\to\SmartAopAi\data\inputFile
 ```
 
-> Use forward slashes or double backslashes in `INGEST_DIR` on Windows to avoid escape issues.
+> Use forward slashes or double backslashes to avoid escape issues.
 
-### 7. Run the ingest
+#### 6. Pull the LLM model
 
-Place the `.xlsx` file in your `INGEST_DIR` folder, then:
+Open Ollama, then in a terminal:
 
 ```powershell
-python -m backend.ingest.ingest
+ollama pull qwen2.5-coder:32b
 ```
 
-### 8. Start the backend
+---
 
-```powershell
+## Running the Project
+
+Every time you want to run the app, you need **three things** running:
+
+1. **Ollama** (LLM server)
+2. **FastAPI backend** (port 8000)
+3. **React frontend** (port 5173)
+
+Open three separate terminal windows.
+
+---
+
+### Terminal 1 — Ollama
+
+**Mac:**
+```bash
+ollama serve
+```
+**Windows:**  
+Launch the Ollama desktop app, or run `ollama serve` in PowerShell.
+
+> If the Ollama desktop app is already running in your menu bar, skip this — it starts the server automatically.
+
+---
+
+### Terminal 2 — Backend
+
+From the project root (`SmartAopAi/`):
+
+**Mac:**
+```bash
+source .venv/bin/activate
 uvicorn backend.api.main:app --reload --port 8000
 ```
 
-### 9. Start the frontend
-
+**Windows:**
 ```powershell
+.venv\Scripts\activate
+uvicorn backend.api.main:app --reload --port 8000
+```
+
+You should see:
+```
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+```
+
+Verify it's healthy:
+```bash
+curl http://localhost:8000/health
+```
+Expected response:
+```json
+{"status":"ok","db_connected":true,"llm_reachable":true}
+```
+
+> `llm_reachable: false` means Ollama is not running or the model hasn't finished downloading yet.
+
+---
+
+### Terminal 3 — Frontend
+
+```bash
 cd frontend
 npm run dev
 ```
 
-App will be available at `http://localhost:5173`.
+You should see:
+```
+VITE ready in ...ms
+➜  Local:   http://localhost:5173/
+```
+
+Open `http://localhost:5173` in your browser. Type a question and press **Ask**.
 
 ---
 
 ## Weekly Data Refresh
 
-Each week, drop the new `.xlsx` file into your configured `INGEST_DIR` and re-run the ingest:
+Each week, drop the new `.xlsx` file into `data/inputFile/` (replacing the previous one), then re-run the ingest from the project root:
 
+**Mac:**
 ```bash
-# Mac
-python -m backend.ingest.ingest
-
-# Windows
+source .venv/bin/activate
 python -m backend.ingest.ingest
 ```
 
-The ingest fully replaces all data — no manual cleanup needed.
+**Windows:**
+```powershell
+.venv\Scripts\activate
+python -m backend.ingest.ingest
+```
+
+The ingest fully replaces all data — no manual cleanup needed. The backend does **not** need to be restarted after ingest.
+
+---
+
+## Integration: Pre-populate from another app
+
+The frontend reads a `?q=` URL parameter on load and auto-submits it as the first query. Use this to deep-link from a portal or another tool:
+
+```
+http://localhost:5173/?q=Show%20YTD%20util%25%20by%20cost%20center
+```
 
 ---
 
@@ -239,10 +303,14 @@ The ingest fully replaces all data — no manual cleanup needed.
 
 | Issue | Fix |
 |---|---|
-| `venv not found` | Ensure Python 3.11+ is installed and on your PATH |
+| `ModuleNotFoundError` on backend start | Activate the venv first: `source .venv/bin/activate` (Mac) or `.venv\Scripts\activate` (Windows) |
 | `ollama: command not found` | Install Ollama from ollama.com and restart terminal |
 | `ollama pull` times out | Check internet connection; model is ~20 GB |
-| `INGEST_DIR not set` | Ensure `.env` exists and `INGEST_DIR` has a valid absolute path |
-| `No sheet named Utilization` | Verify the `.xlsx` file has the correct sheet names: `Utilization`, `Util CC Plan`, `Util T2 Plan` |
-| Port 8000 already in use | Change port: `uvicorn backend.api.main:app --port 8001` |
-| Port 5173 already in use | Vite will auto-select the next available port — check terminal output |
+| `llm_reachable: false` in `/health` | Start Ollama (`ollama serve`) and ensure the model finished downloading |
+| `db_connected: false` in `/health` | Run the ingest first: `python -m backend.ingest.ingest` |
+| `INGEST_DIR not set` | Ensure `.env` exists at the project root with `INGEST_DIR` defined |
+| `No sheet named Utilization` | Verify the `.xlsx` has sheets named exactly: `Utilization`, `Util CC Plan`, `Util T2 Plan` |
+| Multiple `.xlsx` files in `INGEST_DIR` | The ingest expects exactly one `.xlsx` file — remove old files from `data/inputFile/` |
+| Port 8000 already in use | Change port: `uvicorn backend.api.main:app --port 8001` and set `VITE_API_URL=http://localhost:8001` in `frontend/.env.local` |
+| Port 5173 already in use | Vite auto-selects the next available port — check terminal output for the actual URL |
+| Slow LLM responses (>2 min) | Normal for a 32B model on CPU. Apple M-series with 48 GB RAM runs it in ~10–30s per query |

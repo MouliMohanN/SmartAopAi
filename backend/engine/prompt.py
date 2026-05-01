@@ -210,6 +210,13 @@ PLAN VS ACTUAL (Util % only — NEVER generate plan SQL for raw hour metrics)
   • Week level (T2):
       LEFT JOIN t2_plan p ON (a.hts_t2 = p.hts_t2 AND a.month = p.month)
   • Always use LEFT JOIN so rows without a plan entry still appear (with NULL plan columns).
+  • CRITICAL — plan columns in GROUP BY queries:
+      Plan tables have one row per join key (e.g. one row per hts_t2 + month).
+      When you GROUP BY actuals dimensions, plan columns are NOT in the GROUP BY.
+      You MUST wrap every plan column reference in ANY_VALUE():
+        CORRECT   → ROUND(ANY_VALUE(p.t2_planned_hrs) / NULLIF(ANY_VALUE(p.t2_std_hrs), 0) * 100, 2)
+        INCORRECT → ROUND(p.t2_planned_hrs / NULLIF(p.t2_std_hrs, 0) * 100, 2)
+      Apply this to ALL plan column references: cc_planned_hrs, cc_std_hrs, t2_planned_hrs, t2_std_hrs.
 
 MULTI-ROW EMPLOYEES
   • An employee may have multiple rows per week if they work across different cost centers.

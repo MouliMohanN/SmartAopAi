@@ -23,7 +23,7 @@ Utilization data is available weekly in Excel. Managers, supervisors, and busine
 ## Data Source
 
 ### File
-- Format: `.xlsx`, manually placed in a designated directory on a weekly basis
+- Format: `.xlsx`, manually placed in a directory configured via `.env` (`INGEST_DIR`) on a weekly basis
 - Each upload is a **full historical dump** — prior data may be revised, so the latest file is always the source of truth
 - Storage target: **DuckDB** (3 tables, full replacement on each ingest)
 
@@ -106,6 +106,16 @@ Utilization data is available weekly in Excel. Managers, supervisors, and busine
 | Billable Hours | SUM(Billed Hrs) | Hours |
 | Default (hours) | SUM(Billed Hrs) | Hours |
 
+### Raw Column Access
+
+When a user asks for a raw column directly (not a computed metric):
+- Phrased as a **summary / aggregation** (e.g., "show me Billed Hrs for SC_ENG in March") → return `SUM(column)` grouped by the requested dimension
+- Phrased as **detail / row-level** (e.g., "show me all rows for John Smith") → return individual rows from actuals
+- All non-ignored columns are queryable directly
+- Default when user asks for "hours" with no qualifier: `SUM(Billed Hrs)`
+
+---
+
 ### Plan Metrics
 
 Plan exists **only for Util%** — there is no plan for raw hour metrics (Billed Hours, Capital Hours, etc.).
@@ -127,6 +137,33 @@ Applies **only to Util%**. Variance on raw hour metrics is not supported.
 - **At Week level (T2 dimension)** → use `t2_plan` for `HTS_T2 + Month`; the monthly plan value is shown as-is alongside each week's actual Util%
 - **At Week level (raw hours)** → no plan exists; actuals only
 - **Missing plan entry** → return actuals with a "no plan available" indicator
+
+---
+
+## Temporal Aggregation Modes
+
+### MTD (Month-to-Date)
+Current or specified month only. No carry-forward from prior months.
+
+| User says | Behaviour |
+|---|---|
+| "MTD" (no month specified) | Latest month present in the data |
+| "March MTD" | March data only |
+
+Formula: `SUM(numerator for that month) / SUM(Std Billable Hours for that month)`
+
+### YTD (Year-to-Date)
+January through the current or specified month, inclusive.
+
+| User says | Behaviour |
+|---|---|
+| "YTD" (no month specified) | Jan → latest month present in the data |
+| "March YTD" | Jan + Feb + Mar |
+
+Formula: `SUM(numerator across all months in range) / SUM(Std Billable Hours across all months in range)`
+
+- YTD/MTD applies to **plan metrics** too — same month range logic applied to `cc_plan` / `t2_plan` tables
+- **YTD + weekly dimension** — YTD acts as a date filter only; returns one row per week within the YTD range, each week showing its own metric value. No cumulative rolling calculation.
 
 ---
 
@@ -174,7 +211,7 @@ Queries must work at all of the following levels:
 ## Implementation Plan
 
 ### Phase 1 — Data Infrastructure
-1. Define designated ingest directory and file naming convention
+1. Read ingest directory path from `.env` (`INGEST_DIR`); validate path exists on startup
 2. Build ingest pipeline: read `.xlsx` → parse 3 sheets → load into DuckDB (full replacement on each run)
 3. Validate schema on ingest (column presence, type checks)
 4. Expose a CLI command to trigger ingest manually

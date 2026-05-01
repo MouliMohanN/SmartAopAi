@@ -31,17 +31,20 @@ router = APIRouter()
 
 def _detect_temporal_mode(query: str) -> str | None:
     """
-    Looks for YTD or MTD keywords in the user's question.
+    Detects the temporal scope of the query.
 
-    Returns 'YTD', 'MTD', or None.
-    This is surfaced to the frontend so it can label the result appropriately.
+    Returns 'MTD' if the user explicitly asks for a single month or MTD.
+    Returns 'YTD' otherwise — including when no temporal keyword is present,
+    because unqualified queries default to YTD per business rules.
     """
     q = query.lower()
-    if re.search(r"\bytd\b|year.to.date", q):
-        return "YTD"
     if re.search(r"\bmtd\b|month.to.date", q):
         return "MTD"
-    return None
+    # Explicit MTD-like phrasing: "in March", "for April", "this month" — single month
+    if re.search(r"\bthis month\b|\bin (jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b|\bfor (jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b", q):
+        return "MTD"
+    # Everything else (explicit YTD or no qualifier) → YTD
+    return "YTD"
 
 
 @router.post("/query", response_model=QueryResponse)

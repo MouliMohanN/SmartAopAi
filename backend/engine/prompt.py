@@ -64,7 +64,7 @@ def _build_percent_metrics_text() -> str:
     lines = []
     for key, m in ACTUALS_PERCENT_METRICS.items():
         formula = (
-            f"ROUND(SUM({m['numerator']}) / NULLIF(SUM(std_billable_hours), 0) * 100, 2)"
+            f"ROUND(SUM({m['numerator']}) / NULLIF(SUM(std_billable_hours), 0) * 100, 1)"
         )
         lines.append(f"  {m['label']:<16} = {formula}")
     return "\n".join(lines)
@@ -83,8 +83,8 @@ def _build_plan_metrics_text() -> str:
     """Formats the plan metrics section of the prompt."""
     lines = []
     for key, m in PLAN_METRICS.items():
-        formula = f"ROUND({m['numerator']} / NULLIF({m['denominator']}, 0) * 100, 2)"
-        lines.append(f"  {m['label']:<20} = {formula}  [from {m['source']}]")
+        formula = f"ROUND(SUM({m['numerator']}) / NULLIF(SUM({m['denominator']}), 0) * 100, 1)"
+        lines.append(f"  {m['label']:<20} = {formula}  [from {m['source']} — always pre-aggregate via CTE]")
     return "\n".join(lines)
 
 
@@ -168,7 +168,7 @@ RAW HOUR METRICS (simple SUM from actuals):
 PLAN METRICS — Util % ONLY (no plan exists for raw hour metrics):
 {_build_plan_metrics_text()}
 
-VARIANCE = ROUND(Actual Util % - Plan Util %, 2)   [absolute difference, not a percentage]
+VARIANCE = ROUND(Actual Util % - Plan Util %, 1)   [absolute difference, not a percentage]
 
 ════════════════════════════════════════════
 BUSINESS RULES
@@ -183,45 +183,207 @@ CURRENT DATA STATE
   • Latest month in the database : {latest_month}
   • All available months in order : {available_months_str}
 
-MTD (Month-to-Date) — current or specified month only, no carry-forward
-  • "MTD" with no month specified → WHERE month = '{latest_month}'
-  • "March MTD"                   → WHERE month = 'Mar'
+══════════════════════════════════
+TEMPORAL RULES
+══════════════════════════════════
 
-YTD (Year-to-Date) — January through current or specified month, inclusive
-  • "YTD" with no month specified → WHERE month IN ({ytd_months_str})
-  • "March YTD"                   → WHERE month IN ('Jan', 'Feb', 'Mar')
-  • CRITICAL: Always SUM raw hours across all months first, THEN divide once.
+DEFAULT (no temporal keyword in query) → treat as YTD
+  Never return only the latest month unless the user explicitly says "MTD" or names a specific month.
+
+MTD — single month snapshot, never cumulative
+  • "MTD" or "this month" with no month named → month = '{latest_month}'
+  • "April MTD"                                → month = 'Apr'
+
+YTD — always cumulative (Jan through specified or latest month)
+  • "YTD" with no month named  → months IN ({ytd_months_str})
+  • "April YTD"                → months IN ('Jan','Feb','Mar','Apr')
+  • Always SUM the raw numerator and denominator across all included months, then divide once.
     CORRECT   → SUM(billed_hrs) / NULLIF(SUM(std_billable_hours), 0)
-    INCORRECT → AVG(billed_hrs / std_billable_hours)
+    INCORRECT → AVG(monthly_util_pct)
 
-YTD WITH WEEKLY BREAKDOWN
-  • When weekly data + YTD: use YTD only as a date range filter.
-  • Return one row per weekend_date, each week showing its own metric.
-  • Do NOT calculate cumulative running totals across weeks.
+══════════════════════════════════
+PLAN VS ACTUAL — UNIVERSAL CTE RULE
+══════════════════════════════════
 
-PLAN VS ACTUAL (Util % only — NEVER generate plan SQL for raw hour metrics)
-  • Employee / Supervisor / Cost Center level:
-      LEFT JOIN cc_plan p ON (a.cost_center = p.cost_center AND a.month = p.month)
-  • T2 level:
-      LEFT JOIN t2_plan p ON (a.hts_t2 = p.hts_t2 AND a.month = p.month)
-  • Week level (CC):
-      LEFT JOIN cc_plan p ON (a.cost_center = p.cost_center AND a.month = p.month)
-      (the monthly plan value will repeat for every week in that month — this is expected)
-  • Week level (T2):
-      LEFT JOIN t2_plan p ON (a.hts_t2 = p.hts_t2 AND a.month = p.month)
-  • Always use LEFT JOIN so rows without a plan entry still appear (with NULL plan columns).
-  • CRITICAL — plan columns in GROUP BY queries:
-      Plan tables have one row per join key (e.g. one row per hts_t2 + month).
-      When you GROUP BY actuals dimensions, plan columns are NOT in the GROUP BY.
-      You MUST wrap every plan column reference in ANY_VALUE():
-        CORRECT   → ROUND(ANY_VALUE(p.t2_planned_hrs) / NULLIF(ANY_VALUE(p.t2_std_hrs), 0) * 100, 2)
-        INCORRECT → ROUND(p.t2_planned_hrs / NULLIF(p.t2_std_hrs, 0) * 100, 2)
-      Apply this to ALL plan column references: cc_planned_hrs, cc_std_hrs, t2_planned_hrs, t2_std_hrs.
+CRITICAL: Never JOIN actuals to a plan table and then aggregate in the same GROUP BY.
+Plan tables have one row per month per dimension (e.g. one row per hts_t2+month).
+Actuals have multiple rows per week per dimension. Joining before aggregating inflates
+plan column SUMs by the number of weeks — producing wrong numbers.
+
+ALWAYS use this structure:
+  CTE 1 — aggregate actuals independently with the correct temporal filter
+  CTE 2 — aggregate plan independently with the same temporal filter
+  Final SELECT — JOIN the two CTEs on the dimension key, compute % and variance
+
+Plan Util % is ALWAYS: ROUND(SUM(planned_hrs) / NULLIF(SUM(std_hrs), 0) * 100, 1)
+  • For cc_plan : SUM(cc_planned_hrs) / NULLIF(SUM(cc_std_hrs), 0)
+  • For t2_plan : SUM(t2_planned_hrs) / NULLIF(SUM(t2_std_hrs), 0)
+  Never reference plan columns directly in a query that touches actuals rows.
+
+Plan data is ALWAYS available — always use INNER JOIN or LEFT JOIN between the two CTEs.
+
+══════════════════════════════════
+FOUR SQL PATTERNS — USE EXACTLY
+══════════════════════════════════
+
+────────────────────────────────
+PATTERN 1: YTD, no month breakdown
+(user asks for a single aggregate number per dimension, default or explicit YTD)
+────────────────────────────────
+WITH actuals_agg AS (
+    SELECT <dim_col>,
+           SUM(billed_hrs)         AS total_billed,
+           SUM(std_billable_hours) AS total_std
+    FROM actuals
+    WHERE month IN ({ytd_months_str})
+    GROUP BY <dim_col>
+),
+plan_agg AS (
+    SELECT <dim_col>,
+           SUM(<plan_numerator>) AS total_planned,
+           SUM(<plan_denominator>) AS total_plan_std
+    FROM <plan_table>
+    WHERE month IN ({ytd_months_str})
+    GROUP BY <dim_col>
+)
+SELECT
+    a.<dim_col>                                                          AS "<Dim Label>",
+    ROUND(a.total_billed   / NULLIF(a.total_std, 0)       * 100, 1)    AS "Util %",
+    ROUND(p.total_planned  / NULLIF(p.total_plan_std, 0)  * 100, 1)    AS "Plan Util %",
+    ROUND((a.total_billed / NULLIF(a.total_std,0)) * 100 -
+          (p.total_planned / NULLIF(p.total_plan_std,0)) * 100, 1)     AS "Variance"
+FROM actuals_agg a
+LEFT JOIN plan_agg p ON a.<dim_col> = p.<dim_col>
+ORDER BY a.<dim_col>
+
+────────────────────────────────
+PATTERN 2: YTD, month-wise (running cumulative — each month row = Jan through that month)
+(user says "month-wise", "monthly", "by month", "per month" with YTD or no qualifier)
+────────────────────────────────
+WITH month_seq AS (
+    SELECT month, CASE month
+        WHEN 'Jan' THEN 1  WHEN 'Feb' THEN 2  WHEN 'Mar' THEN 3
+        WHEN 'Apr' THEN 4  WHEN 'May' THEN 5  WHEN 'Jun' THEN 6
+        WHEN 'Jul' THEN 7  WHEN 'Aug' THEN 8  WHEN 'Sep' THEN 9
+        WHEN 'Oct' THEN 10 WHEN 'Nov' THEN 11 WHEN 'Dec' THEN 12
+    END AS n
+    FROM (VALUES ('Jan'),('Feb'),('Mar'),('Apr'),('May'),('Jun'),
+                 ('Jul'),('Aug'),('Sep'),('Oct'),('Nov'),('Dec')) t(month)
+),
+ytd_anchors AS (
+    SELECT month, n FROM month_seq WHERE month IN ({ytd_months_str})
+),
+actuals_cumulative AS (
+    SELECT anc.month AS anchor_month, anc.n AS anchor_n, a.<dim_col>,
+           SUM(a.billed_hrs)         AS cum_billed,
+           SUM(a.std_billable_hours) AS cum_std
+    FROM actuals a
+    JOIN month_seq ms  ON ms.month = a.month
+    JOIN ytd_anchors anc ON ms.n <= anc.n
+    WHERE a.month IN ({ytd_months_str})
+    GROUP BY anc.month, anc.n, a.<dim_col>
+),
+plan_cumulative AS (
+    SELECT anc.month AS anchor_month, anc.n AS anchor_n, p.<dim_col>,
+           SUM(p.<plan_numerator>)   AS cum_planned,
+           SUM(p.<plan_denominator>) AS cum_plan_std
+    FROM <plan_table> p
+    JOIN month_seq ms  ON ms.month = p.month
+    JOIN ytd_anchors anc ON ms.n <= anc.n
+    WHERE p.month IN ({ytd_months_str})
+    GROUP BY anc.month, anc.n, p.<dim_col>
+)
+SELECT
+    ac.anchor_month                                                         AS "Month",
+    ac.<dim_col>                                                            AS "<Dim Label>",
+    ROUND(ac.cum_billed  / NULLIF(ac.cum_std, 0)       * 100, 1)           AS "Util %",
+    ROUND(pc.cum_planned / NULLIF(pc.cum_plan_std, 0)  * 100, 1)           AS "Plan Util %",
+    ROUND((ac.cum_billed / NULLIF(ac.cum_std,0)) * 100 -
+          (pc.cum_planned / NULLIF(pc.cum_plan_std,0)) * 100, 1)           AS "Variance"
+FROM actuals_cumulative ac
+LEFT JOIN plan_cumulative pc
+       ON pc.anchor_month = ac.anchor_month AND pc.<dim_col> = ac.<dim_col>
+ORDER BY ac.anchor_n, ac.<dim_col>
+
+────────────────────────────────
+PATTERN 3: MTD, no month breakdown
+(user says "MTD" or names a specific month, no month-wise breakdown)
+────────────────────────────────
+WITH actuals_agg AS (
+    SELECT <dim_col>,
+           SUM(billed_hrs)         AS total_billed,
+           SUM(std_billable_hours) AS total_std
+    FROM actuals
+    WHERE month = '<target_month>'
+    GROUP BY <dim_col>
+),
+plan_agg AS (
+    SELECT <dim_col>,
+           SUM(<plan_numerator>)   AS total_planned,
+           SUM(<plan_denominator>) AS total_plan_std
+    FROM <plan_table>
+    WHERE month = '<target_month>'
+    GROUP BY <dim_col>
+)
+SELECT
+    a.<dim_col>                                                          AS "<Dim Label>",
+    ROUND(a.total_billed   / NULLIF(a.total_std, 0)       * 100, 1)    AS "Util %",
+    ROUND(p.total_planned  / NULLIF(p.total_plan_std, 0)  * 100, 1)    AS "Plan Util %",
+    ROUND((a.total_billed / NULLIF(a.total_std,0)) * 100 -
+          (p.total_planned / NULLIF(p.total_plan_std,0)) * 100, 1)     AS "Variance"
+FROM actuals_agg a
+LEFT JOIN plan_agg p ON a.<dim_col> = p.<dim_col>
+ORDER BY a.<dim_col>
+
+────────────────────────────────
+PATTERN 4: MTD, month-wise (each month is standalone — no cumulation)
+(user says "month-wise MTD" or asks for a month-by-month breakdown without YTD)
+────────────────────────────────
+WITH actuals_agg AS (
+    SELECT month, <dim_col>,
+           SUM(billed_hrs)         AS total_billed,
+           SUM(std_billable_hours) AS total_std
+    FROM actuals
+    WHERE month IN ({available_months_str})
+    GROUP BY month, <dim_col>
+),
+plan_agg AS (
+    SELECT month, <dim_col>,
+           SUM(<plan_numerator>)   AS total_planned,
+           SUM(<plan_denominator>) AS total_plan_std
+    FROM <plan_table>
+    WHERE month IN ({available_months_str})
+    GROUP BY month, <dim_col>
+)
+SELECT
+    a.month                                                              AS "Month",
+    a.<dim_col>                                                          AS "<Dim Label>",
+    ROUND(a.total_billed   / NULLIF(a.total_std, 0)       * 100, 1)    AS "Util %",
+    ROUND(p.total_planned  / NULLIF(p.total_plan_std, 0)  * 100, 1)    AS "Plan Util %",
+    ROUND((a.total_billed / NULLIF(a.total_std,0)) * 100 -
+          (p.total_planned / NULLIF(p.total_plan_std,0)) * 100, 1)     AS "Variance"
+FROM actuals_agg a
+LEFT JOIN plan_agg p ON a.month = p.month AND a.<dim_col> = p.<dim_col>
+ORDER BY {month_case}, a.<dim_col>
+
+══════════════════════════════════
+OTHER RULES
+══════════════════════════════════
+
+ACTUALS-ONLY QUERIES (no plan involved)
+  • Follow the same CTE structure but with only the actuals CTE — no plan CTE needed.
+  • YTD: WHERE month IN ({ytd_months_str})
+  • MTD: WHERE month = '{latest_month}' (or named month)
+  • Month-wise: GROUP BY month, <dim_col>
+
+YTD WITH WEEKLY BREAKDOWN (week-level time series + YTD date range)
+  • Use YTD as a date filter only. Return one row per weekend_date.
+  • Each week row shows that week's own metric — no cumulation across weeks.
+  • WHERE month IN ({ytd_months_str}), GROUP BY weekend_date, <dim_col>
 
 MULTI-ROW EMPLOYEES
-  • An employee may have multiple rows per week if they work across different cost centers.
-  • Each row's hours belong only to that row's cost center.
-  • When grouping by employee: SUM across all their cost center rows for that period.
+  • An employee can have multiple rows per week across different cost centers.
+  • When grouping by employee: SUM all their cost center rows for the period.
 
 RAW COLUMN QUERIES
   • Summary question (e.g. "total billed hours for SC_ENG") → SUM(column) GROUP BY dimension
@@ -232,7 +394,7 @@ SQL STYLE RULES
 ════════════════════════════════════════════
   • Use NULLIF(denominator, 0) to prevent division-by-zero errors.
   • Use descriptive column aliases: AS "Util %", AS "Cost Center", AS "Month", etc.
-  • Order results logically: by month order, alphabetically by name, or by value DESC.
+  • Order results logically: by month order, then alphabetically by dimension.
   • Do not add LIMIT unless the user explicitly asks for "top N" results.
-  • Use the alias prefix `a` for actuals, `p` for plan tables when joining.
+  • CTE aliases: use descriptive names (actuals_agg, plan_agg, actuals_cumulative, plan_cumulative).
 """

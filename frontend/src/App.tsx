@@ -9,12 +9,19 @@ import { ResultSection } from './components/ResultSection';
 import './index.css';
 
 const SUGGESTIONS = [
-  { icon: '👤', label: 'Top 5 supervisors by utilization' },
-  { icon: '📉', label: 'Which T2 is underperforming?' },
-  { icon: '👥', label: 'Top 10 employees by utilization' },
-  { icon: '📊', label: 'Supervisor plan vs actual YTD' },
+  { icon: '📈', label: 'Which T2 exceeded plan the most?' },
+  { icon: '📉', label: 'Employees with utilization below 70%' },
+  { icon: '📊', label: 'Which supervisor has the highest variance?' },
   { icon: '🏢', label: 'Top 5 cost centers by utilization' },
-  { icon: '⭐', label: 'Supervisors above 100% utilization' },
+  { icon: '⭐', label: 'Best-performing supervisor by utilization' },
+  { icon: '📅', label: 'Monthwise variance in supervisor utilization for "Suchitra K"' },
+  { icon: '👥', label: 'List of underutilized employees in cost center "EOPS_ENG_EBM_OPS"' },
+  { icon: '👤', label: 'Supervisor-level utilization under "HTS_EOPS"' },
+  { icon: '🔻', label: 'Supervisors with utilization below 70%' },
+  { icon: '⚖️', label: 'Compare utilization between Mar YTD and Apr YTD for cost center "EOPS_ENG_EBM_OPS"' },
+  { icon: '🏆', label: 'Who had the highest utilization in Q1 2026?' },
+  { icon: '🔴', label: 'Cost centers with negative variance' },
+  { icon: '💯', label: 'Supervisors with utilization above 100%' },
 ];
 
 export default function App() {

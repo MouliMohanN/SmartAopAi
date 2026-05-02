@@ -72,7 +72,13 @@ export const QueryInput = forwardRef<QueryInputHandle, Props>(
     const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
       const trimmed = value.trim();
-      if (trimmed && !loading) onSubmit(trimmed);
+      if (trimmed && !loading) {
+        if (isListening && recognitionRef.current) {
+          recognitionRef.current.stop();
+          setIsListening(false);
+        }
+        onSubmit(trimmed);
+      }
     };
 
     return (

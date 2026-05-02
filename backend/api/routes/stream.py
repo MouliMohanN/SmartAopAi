@@ -26,6 +26,8 @@
 import re
 import json
 import logging
+import datetime
+import decimal
 from typing import AsyncGenerator
 
 from fastapi import APIRouter, Request
@@ -62,8 +64,16 @@ def _detect_temporal_mode(query: str) -> str | None:
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+def _json_default(o: object) -> object:
+    if isinstance(o, (datetime.date, datetime.datetime)):
+        return o.isoformat()
+    if isinstance(o, decimal.Decimal):
+        return float(o)
+    raise TypeError(f"Object of type {type(o).__name__} is not JSON serializable")
+
+
 def _ndjson(obj: dict) -> str:
-    return json.dumps(obj, ensure_ascii=False) + "\n"
+    return json.dumps(obj, ensure_ascii=False, default=_json_default) + "\n"
 
 
 def _step(step_id: str, status: str, message: str | None = None) -> str:
@@ -106,6 +116,16 @@ async def _stream_pipeline(request_obj: Request, request: StreamRequest) -> Asyn
     temporal_mode = _detect_temporal_mode(query)
     logger.info(f"Starting stream pipeline for query: {query}")
 
+    try:
+        async for chunk in _run_pipeline(request_obj, query, temporal_mode):
+            yield chunk
+    except Exception as e:
+        logger.error(f"Unhandled pipeline exception: {e}", exc_info=True)
+        yield _ndjson({"event": "error", "message": "An unexpected server error occurred."})
+        yield _ndjson({"event": "done"})
+
+
+async def _run_pipeline(request_obj: Request, query: str, temporal_mode: str) -> AsyncGenerator[str, None]:
     # ── Stage 1: Analyzing ────────────────────────────────────────────────────
     yield _step("analyzing", "active", "Analyzing your question…")
 
@@ -222,7 +242,7 @@ async def _stream_pipeline(request_obj: Request, request: StreamRequest) -> Asyn
                     yield _ndjson({"event": "token", "text": token})
                 logger.info("Stage 6: Generating insights complete")
                 yield _step("generating_insights", "done")
-            except RuntimeError as e:
+            except Exception as e:
                 logger.error(f"Narrative generation failed: {e}")
                 yield _step("generating_insights", "error")
 

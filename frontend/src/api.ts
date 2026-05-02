@@ -97,30 +97,38 @@ export interface StreamHandlers {
 export async function streamQuery(
   query:    string,
   handlers: StreamHandlers,
+  abortSignal?: AbortSignal,
 ): Promise<void> {
+  console.log('[api] Starting streamQuery for:', query);
+
   const res = await fetch(`${BASE_URL}/stream`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify({ query }),
+    signal:  abortSignal,
   });
 
   if (!res.ok) {
     const errText = await res.text().catch(() => '');
+    console.error(`[api] streamQuery failed with status ${res.status}:`, errText);
     throw new Error(`Server error ${res.status}: ${errText}`);
   }
 
   if (!res.body) {
+    console.error('[api] ReadableStream not supported in this environment');
     throw new Error('ReadableStream not supported in this environment.');
   }
 
+  console.log('[api] streamQuery connected, reading stream...');
   const reader  = res.body.getReader();
   const decoder = new TextDecoder();
   let   buffer  = '';
 
-  // Read chunks until the stream closes
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  try {
+    // Read chunks until the stream closes
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
     // Decode the chunk and append to our line buffer.
     // A single read() may contain multiple NDJSON lines or a partial line.
@@ -137,8 +145,8 @@ export async function streamQuery(
       let evt: StreamEvent;
       try {
         evt = JSON.parse(trimmed) as StreamEvent;
-      } catch {
-        // Malformed line — skip silently
+      } catch (err) {
+        console.warn('[api] Failed to parse NDJSON line:', trimmed, err);
         continue;
       }
 
@@ -161,14 +169,26 @@ export async function streamQuery(
     }
   }
 
-  // Flush any remaining buffer content (shouldn't happen with well-formed NDJSON)
-  const remaining = buffer.trim();
-  if (remaining) {
-    try {
-      const evt = JSON.parse(remaining) as StreamEvent;
-      if (evt.event === 'done') handlers.onDone?.();
-      if (evt.event === 'error') handlers.onError?.(evt.message);
-    } catch { /* ignore */ }
+    // Flush any remaining buffer content (shouldn't happen with well-formed NDJSON)
+    const remaining = buffer.trim();
+    if (remaining) {
+      try {
+        const evt = JSON.parse(remaining) as StreamEvent;
+        if (evt.event === 'done') handlers.onDone?.();
+        if (evt.event === 'error') handlers.onError?.(evt.message);
+      } catch (err) {
+        console.warn('[api] Failed to parse remaining buffer:', remaining, err);
+      }
+    }
+    console.log('[api] streamQuery finished reading stream');
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      console.warn('[api] streamQuery aborted by user');
+      handlers.onError?.('Query aborted by user');
+      return;
+    }
+    console.error('[api] streamQuery encountered an error:', err);
+    throw err;
   }
 }
 

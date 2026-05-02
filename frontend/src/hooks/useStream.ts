@@ -110,6 +110,7 @@ export function useStream() {
   const [trackerOpen,      setTrackerOpen]      = useState<boolean>(readTrackerPref);
   const sqlRotatorRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sqlStreamStarted = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const toggleTracker = useCallback(() => {
     setTrackerOpen(prev => {
@@ -120,6 +121,7 @@ export function useStream() {
   }, []);
 
   const submit = useCallback(async (query: string) => {
+    console.log('[useStream] submit called with query:', query);
     if (sqlRotatorRef.current) {
       clearTimeout(sqlRotatorRef.current);
       sqlRotatorRef.current = null;
@@ -135,9 +137,16 @@ export function useStream() {
     setCurrentStepMsg(null);
     sqlStreamStarted.current = false;
 
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
       await streamQuery(query, {
         onStep: (stepId, stepStatus, message) => {
+          console.debug(`[useStream] onStep: id=${stepId}, status=${stepStatus}, message=${message}`);
           if (stepStatus === 'active') {
             if (stepId === 'generating_sql') {
               // Kick off rotating messages for the slow SQL generation step
@@ -191,9 +200,13 @@ export function useStream() {
           setSql(prev => (prev ?? '') + token);
         },
 
-        onSqlDone: (cleanSql) => setSql(cleanSql),
+        onSqlDone: (cleanSql) => {
+          console.debug('[useStream] onSqlDone:', cleanSql);
+          setSql(cleanSql);
+        },
 
         onResult: (data) => {
+          console.debug('[useStream] onResult received with', data.rows.length, 'rows');
           setResult({
             columns:        data.columns,
             rows:           data.rows,
@@ -221,11 +234,13 @@ export function useStream() {
         },
 
         onDone: () => {
+          console.log('[useStream] onDone: Stream completed normally');
           setStatus('done');
           setNarrativeDone(true);
         },
 
         onError: (message) => {
+          console.error('[useStream] onError:', message);
           if (sqlRotatorRef.current) {
             clearTimeout(sqlRotatorRef.current);
             sqlRotatorRef.current = null;
@@ -234,8 +249,9 @@ export function useStream() {
           setStatus('error');
           setNarrativeDone(true);
         },
-      });
+      }, controller.signal);
     } catch (e: unknown) {
+      console.error('[useStream] Exception caught in submit:', e);
       if (sqlRotatorRef.current) {
         clearTimeout(sqlRotatorRef.current);
         sqlRotatorRef.current = null;
@@ -243,6 +259,13 @@ export function useStream() {
       setError(e instanceof Error ? e.message : 'An unexpected error occurred.');
       setStatus('error');
       setNarrativeDone(true);
+    }
+  }, []);
+
+  const abort = useCallback(() => {
+    console.log('[useStream] abort called');
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
     }
   }, []);
 
@@ -262,5 +285,6 @@ export function useStream() {
     trackerOpen,
     toggleTracker,
     submit,
+    abort,
   };
 }

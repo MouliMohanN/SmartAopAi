@@ -4,6 +4,7 @@ interface Props {
   value:    string;
   onChange: (v: string) => void;
   onSubmit: (query: string) => void;
+  onAbort?: () => void;
   loading:  boolean;
 }
 
@@ -12,7 +13,7 @@ export interface QueryInputHandle {
 }
 
 export const QueryInput = forwardRef<QueryInputHandle, Props>(
-  function QueryInput({ value, onChange, onSubmit, loading }, ref) {
+  function QueryInput({ value, onChange, onSubmit, onAbort, loading }, ref) {
     const inputRef = useRef<HTMLInputElement>(null);
 
     useImperativeHandle(ref, () => ({
@@ -37,9 +38,24 @@ export const QueryInput = forwardRef<QueryInputHandle, Props>(
           disabled={loading}
           autoFocus
         />
-        <button className="query-submit" type="submit" disabled={loading || !value.trim()}>
-          {loading ? 'Running…' : 'Ask'}
-        </button>
+        {loading ? (
+          <button 
+            key="stop"
+            className="query-submit query-stop" 
+            type="button" 
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onAbort?.();
+            }}
+          >
+            Stop
+          </button>
+        ) : (
+          <button key="ask" className="query-submit" type="submit" disabled={!value.trim()}>
+            Ask
+          </button>
+        )}
       </form>
     );
   }

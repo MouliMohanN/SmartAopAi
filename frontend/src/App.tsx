@@ -24,7 +24,7 @@ export default function App() {
     sql, result, narrative, narrativeDone,
     error, loading,
     steps, currentStepMsg, trackerOpen, toggleTracker,
-    submit,
+    submit, abort,
   } = useStream();
 
   const [queryValue, setQueryValue] = useState('');
@@ -105,6 +105,7 @@ export default function App() {
               value={queryValue}
               onChange={setQueryValue}
               onSubmit={submit}
+              onAbort={abort}
               loading={loading}
             />
           </div>

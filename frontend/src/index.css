@@ -228,6 +228,14 @@ body {
   cursor: not-allowed;
 }
 
+.query-stop {
+  background: var(--danger);
+}
+
+.query-stop:hover:not(:disabled) {
+  background: #dc2626;
+}
+
 /* ── Error banner ──────────────────────────────────────────────── */
 .error-banner {
   padding: 14px 18px;

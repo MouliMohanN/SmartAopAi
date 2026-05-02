@@ -37,7 +37,6 @@ export function StepTracker({ steps, defaultOpen = true, isLoading, activeMessag
   const onToggle = () => setOpen(o => !o);
 
   const doneCount   = steps.filter(s => s.status === 'done').length;
-  const totalSteps  = isLoading ? '…' : String(steps.length);
   const summaryText = isLoading
     ? `Processing — ${doneCount} of 6 steps done`
     : `Completed in ${steps.length} steps`;

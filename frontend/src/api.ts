@@ -17,6 +17,11 @@ import type { QueryResponse, ExplainResponse, ResultRow } from './types';
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
+const BASE_HEADERS: Record<string, string> = {
+  'Content-Type': 'application/json',
+  'ngrok-skip-browser-warning': 'true',
+};
+
 /**
  * Sends a natural language question to POST /query.
  * Returns the full query response including rows, chart hint, and metadata.
@@ -25,7 +30,7 @@ const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 export async function postQuery(query: string): Promise<QueryResponse> {
   const res = await fetch(`${BASE_URL}/query`, {
     method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: BASE_HEADERS,
     body:    JSON.stringify({ query }),
   });
 
@@ -48,7 +53,7 @@ export async function postExplain(
 ): Promise<ExplainResponse> {
   const res = await fetch(`${BASE_URL}/explain`, {
     method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: BASE_HEADERS,
     body:    JSON.stringify({ query, result }),
   });
 
@@ -103,7 +108,7 @@ export async function streamQuery(
 
   const res = await fetch(`${BASE_URL}/stream`, {
     method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: BASE_HEADERS,
     body:    JSON.stringify({ query }),
     signal:  abortSignal,
   });

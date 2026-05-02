@@ -44,7 +44,7 @@ function buildTiles(columns: string[], rows: ResultRow[]) {
 }
 
 export function ResultTable({ result }: Props) {
-  const { columns, rows, row_count, plan_available, temporal_mode, sql } = result;
+  const { columns, rows, row_count, plan_available, temporal_mode } = result;
   const tiles = buildTiles(columns, rows);
 
   return (

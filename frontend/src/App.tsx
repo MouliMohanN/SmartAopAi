@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react';
-import { useStream }       from './hooks/useStream';
-import { QueryInput }      from './components/QueryInput';
-import { ResultTable }     from './components/ResultTable';
-import { ResultChart }     from './components/ResultChart';
-import { ResultSkeleton }  from './components/ResultSkeleton';
-import { SqlPanel }        from './components/SqlPanel';
-import { NarrativePanel }  from './components/NarrativePanel';
-import { StepTracker }     from './components/StepTracker';
+import { useEffect, useRef, useState } from 'react';
+import { useStream } from './hooks/useStream';
+import { QueryInput } from './components/QueryInput';
+import type { QueryInputHandle } from './components/QueryInput';
+import { ResultTable } from './components/ResultTable';
+import { ResultChart } from './components/ResultChart';
+import { ResultSkeleton } from './components/ResultSkeleton';
+import { SqlPanel } from './components/SqlPanel';
+import { NarrativePanel } from './components/NarrativePanel';
+import { StepTracker } from './components/StepTracker';
 import './index.css';
 
 const SUGGESTIONS = [
@@ -27,6 +28,7 @@ export default function App() {
   } = useStream();
 
   const [queryValue, setQueryValue] = useState('');
+  const queryInputRef = useRef<QueryInputHandle>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -35,7 +37,7 @@ export default function App() {
       setQueryValue(q);
       submit(q);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -55,7 +57,7 @@ export default function App() {
                 key={s.label}
                 type="button"
                 className="suggestion-card"
-                onClick={() => setQueryValue(s.label)}
+                onClick={() => { setQueryValue(s.label); queryInputRef.current?.focus(); }}
                 disabled={loading}
               >
                 <span className="suggestion-card-icon">{s.icon}</span>
@@ -99,6 +101,7 @@ export default function App() {
 
           <div className="query-bar">
             <QueryInput
+              ref={queryInputRef}
               value={queryValue}
               onChange={setQueryValue}
               onSubmit={submit}

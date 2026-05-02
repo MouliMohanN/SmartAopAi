@@ -223,13 +223,28 @@ Plan Util % is ALWAYS: ROUND(SUM(planned_hrs) / NULLIF(SUM(std_hrs), 0) * 100, 1
 Plan data is ALWAYS available — always use INNER JOIN or LEFT JOIN between the two CTEs.
 
 AERO TOTAL ROW IN t2_plan
-  t2_plan contains a row where hts_t2 = 'Aero Total'. This is an independently entered
-  company-wide plan figure — it is NOT derived from the other T2 rows, so there is no
-  double-count risk.
-  • T2-level breakdown query  → include ALL rows (no filter on hts_t2).
+  t2_plan contains a row where hts_t2 = 'Aero Total' (exact stored value, title case).
+  This is an independently entered company-wide plan figure covering ALL T2 groups.
+  'Aero Total' does NOT exist in the actuals table — no employee row has hts_t2 = 'Aero Total'.
+
+  • T2-level breakdown query  → actuals_agg must inject a synthetic 'Aero Total' row via
+    UNION ALL that sums ALL actuals rows with no hts_t2 filter (company-wide total).
+    Use the exact literal 'Aero Total' so the JOIN matches t2_plan.
     Individual T2 rows appear first sorted alphabetically; Aero Total appears last.
-    Achieve this with: ORDER BY CASE WHEN LOWER(hts_t2) = 'aero total' THEN 1 ELSE 0 END, hts_t2
-  • Overall / company-wide only query  → WHERE LOWER(hts_t2) = 'aero total'
+
+    actuals_agg pattern:
+      SELECT hts_t2, SUM(billed_hrs) AS total_billed, SUM(std_billable_hours) AS total_std
+      FROM actuals WHERE LOWER(month) IN (...)
+      GROUP BY hts_t2
+      UNION ALL
+      SELECT 'Aero Total', SUM(billed_hrs), SUM(std_billable_hours)
+      FROM actuals WHERE LOWER(month) IN (...)
+
+    JOIN on:  LOWER(a.hts_t2) = LOWER(p.hts_t2)
+    ORDER BY: CASE WHEN LOWER(a.hts_t2) = 'aero total' THEN 1 ELSE 0 END, a.hts_t2
+
+  • Overall / company-wide only query  → no UNION ALL needed; filter actuals normally
+    and plan_agg with WHERE LOWER(hts_t2) = 'aero total'
 
 ══════════════════════════════════
 FOUR SQL PATTERNS — USE EXACTLY

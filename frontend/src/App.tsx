@@ -9,6 +9,15 @@ import { NarrativePanel }  from './components/NarrativePanel';
 import { StepTracker }     from './components/StepTracker';
 import './index.css';
 
+const SUGGESTIONS = [
+  { icon: '👤', label: 'Top 5 supervisors by utilization' },
+  { icon: '📉', label: 'Which T2 is underperforming?' },
+  { icon: '👥', label: 'Top 10 employees by utilization' },
+  { icon: '📊', label: 'Supervisor plan vs actual YTD' },
+  { icon: '🏢', label: 'Top 5 cost centers by utilization' },
+  { icon: '⭐', label: 'Supervisors above 100% utilization' },
+];
+
 export default function App() {
   const {
     sql, result, narrative, narrativeDone,
@@ -17,13 +26,13 @@ export default function App() {
     submit,
   } = useStream();
 
-  const [initialQuery, setInitialQuery] = useState('');
+  const [queryValue, setQueryValue] = useState('');
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const q = params.get('q');
     if (q) {
-      setInitialQuery(q);
+      setQueryValue(q);
       submit(q);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -36,37 +45,68 @@ export default function App() {
         <p className="app-subtitle">Ask questions about utilization data in plain English</p>
       </header>
 
-      <main className="app-main">
-        <QueryInput onSubmit={submit} loading={loading} initialValue={initialQuery} />
-
-        {error && (
-          <div className="error-banner">
-            <strong>Error:</strong> {error}
+      <div className="app-body">
+        {/* ── Left sidebar ── */}
+        <aside className="suggestions-sidebar">
+          <p className="suggestions-label">Suggested Queries</p>
+          <div className="suggestions-list">
+            {SUGGESTIONS.map(s => (
+              <button
+                key={s.label}
+                type="button"
+                className="suggestion-card"
+                onClick={() => setQueryValue(s.label)}
+                disabled={loading}
+              >
+                <span className="suggestion-card-icon">{s.icon}</span>
+                <span className="suggestion-card-label">{s.label}</span>
+              </button>
+            ))}
           </div>
-        )}
+        </aside>
 
-        {loading && <ResultSkeleton message={currentStepMsg} />}
+        {/* ── Main content ── */}
+        <div className="app-content">
+          <main className="app-main">
+            {error && (
+              <div className="error-banner">
+                <strong>Error:</strong> {error}
+              </div>
+            )}
 
-        {sql && <SqlPanel sql={sql} />}
+            {loading && <ResultSkeleton message={currentStepMsg} />}
 
-        {steps.length > 0 && (
-          <StepTracker
-            steps={steps}
-            open={trackerOpen}
-            onToggle={toggleTracker}
-            isLoading={loading}
-            activeMessage={currentStepMsg}
-          />
-        )}
+            {sql && <SqlPanel sql={sql} />}
 
-        {!loading && result && !result.error && (
-          <div className="result-section slide-in">
-            <ResultChart result={result} />
-            <ResultTable result={result} />
-            <NarrativePanel text={narrative} done={narrativeDone} />
+            {steps.length > 0 && (
+              <StepTracker
+                steps={steps}
+                open={trackerOpen}
+                onToggle={toggleTracker}
+                isLoading={loading}
+                activeMessage={currentStepMsg}
+              />
+            )}
+
+            {!loading && result && !result.error && (
+              <div className="result-section slide-in">
+                <ResultChart result={result} />
+                <ResultTable result={result} />
+                <NarrativePanel text={narrative} done={narrativeDone} />
+              </div>
+            )}
+          </main>
+
+          <div className="query-bar">
+            <QueryInput
+              value={queryValue}
+              onChange={setQueryValue}
+              onSubmit={submit}
+              loading={loading}
+            />
           </div>
-        )}
-      </main>
+        </div>
+      </div>
     </div>
   );
 }

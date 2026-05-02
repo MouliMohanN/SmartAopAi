@@ -804,6 +804,50 @@ body {
   color: var(--text-muted);
 }
 
+/* PDF download button */
+.pdf-download-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.pdf-download-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.pdf-download-btn:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.pdf-download-btn--busy,
+.pdf-download-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.pdf-download-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
 /* Blinking cursor that appears while narrative is still streaming */
 .narrative-cursor {
   display: inline-block;

@@ -2,12 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { useStream } from './hooks/useStream';
 import { QueryInput } from './components/QueryInput';
 import type { QueryInputHandle } from './components/QueryInput';
-import { ResultTable } from './components/ResultTable';
-import { ResultChart } from './components/ResultChart';
 import { ResultSkeleton } from './components/ResultSkeleton';
 import { SqlPanel } from './components/SqlPanel';
-import { NarrativePanel } from './components/NarrativePanel';
 import { StepTracker } from './components/StepTracker';
+import { ResultSection } from './components/ResultSection';
 import './index.css';
 
 const SUGGESTIONS = [
@@ -111,11 +109,12 @@ export default function App() {
                     )}
 
                     {!isLoading && interaction.result && !interaction.result.error && (
-                      <div className="result-section slide-in">
-                        <ResultChart result={interaction.result} />
-                        <ResultTable result={interaction.result} />
-                        <NarrativePanel text={interaction.narrative} done={interaction.narrativeDone} />
-                      </div>
+                      <ResultSection
+                        result={interaction.result}
+                        narrative={interaction.narrative}
+                        narrativeDone={interaction.narrativeDone}
+                        question={interaction.query}
+                      />
                     )}
                   </div>
                 </div>

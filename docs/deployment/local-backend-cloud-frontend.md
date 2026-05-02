@@ -178,6 +178,67 @@ Or go to **System Settings → Battery → Prevent sleep** while on power.
 | SSE buffering through tunnel | Cloudflare Tunnel passes SSE through correctly; ensure no buffering middleware in FastAPI |
 | Machine sleeps during demo | Run `caffeinate -i` before demo |
 | Tunnel URL hardcoded in build | Keep it in `VITE_API_URL` env var in Vercel; update + redeploy if it changes |
+| ngrok URL blocked by corporate/office network | See troubleshooting section below |
+
+---
+
+## Troubleshooting
+
+### "Failed to fetch" — ngrok URL blocked by network firewall
+
+**Symptoms:**
+- App works on your machine, fails on colleague's machine
+- Network tab shows `0 B transferred`, empty response headers, "Provisional headers are shown" warning
+- Colleague cannot open the ngrok URL directly in their browser
+- Error says "Failed to fetch" or "ERR_CONNECTION_REFUSED"
+
+**Root cause:**
+Corporate, office, and school networks commonly block `*.ngrok-free.app` and `*.ngrok-free.dev` domains at the firewall level. The request never reaches your machine. This looks like a CORS error on the surface but is actually a network block — a real CORS error would show response headers.
+
+**How to diagnose:**
+Ask the colleague to open the backend health endpoint directly in their browser:
+```
+https://<your-ngrok-url>/health
+```
+- Loads → ngrok is reachable, look elsewhere
+- Times out / connection refused → network is blocking ngrok
+
+**Solutions ranked by effort:**
+
+1. **Switch to Cloudflare Tunnel (Phase 2)** — Cloudflare Tunnel traffic uses standard HTTPS on port 443 with Cloudflare's IP ranges, which are rarely blocked. This is the permanent fix once `moulitech.in` domain is verified.
+
+2. **Use a mobile hotspot for the demo** — Have the colleague join your hotspot or their phone's hotspot. Bypasses the corporate firewall entirely. Zero setup, good for one-off demos.
+
+3. **Use ngrok paid plan with a custom domain** — ngrok paid ($10/mo) lets you use your own domain (e.g. `api.moulitech.in`). Since it's your domain on port 443, firewalls are less likely to block it.
+
+4. **Use Tailscale Funnel** — Creates a tunnel through Tailscale's relay network using standard HTTPS. Less likely to be blocked than ngrok's known IP ranges. Requires both machines to install Tailscale.
+
+**For investor demos specifically:** Always test on the demo machine and network at least 30 minutes before. If blocked, mobile hotspot is the fastest recovery.
+
+### ngrok interstitial blocking API calls (CORS-like error)
+
+**Symptoms:**
+- App works on your machine, fails on a fresh machine that has never visited the ngrok URL
+- CORS error in console but switching to Cloudflare Tunnel fixes it
+
+**Root cause:**
+ngrok free tier shows a browser warning page on first visit. For API fetch calls, this HTML page is returned instead of JSON, with no CORS headers. The browser's OPTIONS preflight request does not include custom headers (like `ngrok-skip-browser-warning`), so the interstitial fires before the actual request.
+
+**Fix:**
+Restart ngrok with the `--request-header-add` flag so the skip header is injected into all requests including OPTIONS preflight:
+
+```bash
+ngrok http 8000 --request-header-add "ngrok-skip-browser-warning:true"
+```
+
+Also ensure `api.ts` includes the header on all fetch calls:
+
+```ts
+const BASE_HEADERS: Record<string, string> = {
+  'Content-Type': 'application/json',
+  'ngrok-skip-browser-warning': 'true',
+};
+```
 
 ---
 

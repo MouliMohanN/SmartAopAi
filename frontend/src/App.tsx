@@ -52,7 +52,7 @@ export default function App() {
     <div className="app">
       <header className="app-header">
         <h1 className="app-title">SmartAop<span className="app-title-accent">Ai</span></h1>
-        <p className="app-subtitle">Ask questions about utilization data in plain English</p>
+        <p className="app-subtitle">Ask questions about utilization data in natural language</p>
       </header>
 
       <div className="app-body">

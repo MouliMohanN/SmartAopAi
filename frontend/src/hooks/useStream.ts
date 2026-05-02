@@ -93,22 +93,6 @@ export interface Interaction {
   currentStepMsg: string | null;
 }
 
-const TRACKER_OPEN_KEY = 'smartaop_tracker_open';
-
-function readTrackerPref(): boolean {
-  try {
-    const stored = localStorage.getItem(TRACKER_OPEN_KEY);
-    return stored === 'true';
-  } catch {
-    return false;
-  }
-}
-
-function writeTrackerPref(value: boolean): void {
-  try {
-    localStorage.setItem(TRACKER_OPEN_KEY, String(value));
-  } catch { /* ignore */ }
-}
 
 export function useStream() {
   const [interactions, setInteractions] = useState<Interaction[]>([]);

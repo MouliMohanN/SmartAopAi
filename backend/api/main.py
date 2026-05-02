@@ -13,6 +13,8 @@
 #   In production, restrict `allow_origins` to the actual frontend URL.
 # -----------------------------------------------------------------------------
 
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -30,12 +32,15 @@ app = FastAPI(
 # ── CORS Configuration ────────────────────────────────────────────────────────
 # Allows the React frontend (running on localhost:5173 during development)
 # to make requests to this backend (running on localhost:8000).
+_extra_origins = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "").split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:5173",   # Vite dev server (React)
-        "http://localhost:5174",   # Vite fallback port (when 5173 is in use)
-        "http://localhost:3000",   # alternative React dev port
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:3000",
+        *_extra_origins,
     ],
     allow_methods=["GET", "POST"],
     allow_headers=["*"],

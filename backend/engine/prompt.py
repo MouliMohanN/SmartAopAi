@@ -101,17 +101,17 @@ def build_system_prompt(conn) -> str:
     available_months = _get_available_months(conn)
     ytd_months     = get_ytd_months(latest_month)
 
-    # Format month lists as quoted SQL strings for easy inclusion in WHERE clauses
-    available_months_str = ", ".join(f"'{m}'" for m in available_months)
-    ytd_months_str       = ", ".join(f"'{m}'" for m in ytd_months)
+    # Format month lists as lowercase quoted SQL strings for case-insensitive WHERE clauses
+    available_months_str = ", ".join(f"'{m.lower()}'" for m in available_months)
+    ytd_months_str       = ", ".join(f"'{m.lower()}'" for m in ytd_months)
 
-    # The month ordering CASE expression — used for correct ORDER BY in SQL
+    # The month ordering CASE expression — uses LOWER(month) to match lowercase literals
     month_case = (
-        "CASE month "
-        "WHEN 'Jan' THEN 1  WHEN 'Feb' THEN 2  WHEN 'Mar' THEN 3  "
-        "WHEN 'Apr' THEN 4  WHEN 'May' THEN 5  WHEN 'Jun' THEN 6  "
-        "WHEN 'Jul' THEN 7  WHEN 'Aug' THEN 8  WHEN 'Sep' THEN 9  "
-        "WHEN 'Oct' THEN 10 WHEN 'Nov' THEN 11 WHEN 'Dec' THEN 12 END"
+        "CASE LOWER(month) "
+        "WHEN 'jan' THEN 1  WHEN 'feb' THEN 2  WHEN 'mar' THEN 3  "
+        "WHEN 'apr' THEN 4  WHEN 'may' THEN 5  WHEN 'jun' THEN 6  "
+        "WHEN 'jul' THEN 7  WHEN 'aug' THEN 8  WHEN 'sep' THEN 9  "
+        "WHEN 'oct' THEN 10 WHEN 'nov' THEN 11 WHEN 'dec' THEN 12 END"
     )
 
     return f"""You are a SQL expert for an employee utilization analytics system.
@@ -191,12 +191,12 @@ DEFAULT (no temporal keyword in query) → treat as YTD
   Never return only the latest month unless the user explicitly says "MTD" or names a specific month.
 
 MTD — single month snapshot, never cumulative
-  • "MTD" or "this month" with no month named → month = '{latest_month}'
-  • "April MTD"                                → month = 'Apr'
+  • "MTD" or "this month" with no month named → LOWER(month) = '{latest_month.lower()}'
+  • "April MTD"                                → LOWER(month) = 'apr'
 
 YTD — always cumulative (Jan through specified or latest month)
-  • "YTD" with no month named  → months IN ({ytd_months_str})
-  • "April YTD"                → months IN ('Jan','Feb','Mar','Apr')
+  • "YTD" with no month named  → LOWER(month) IN ({ytd_months_str})
+  • "April YTD"                → LOWER(month) IN ('jan','feb','mar','apr')
   • Always SUM the raw numerator and denominator across all included months, then divide once.
     CORRECT   → SUM(billed_hrs) / NULLIF(SUM(std_billable_hours), 0)
     INCORRECT → AVG(monthly_util_pct)
@@ -223,12 +223,28 @@ Plan Util % is ALWAYS: ROUND(SUM(planned_hrs) / NULLIF(SUM(std_hrs), 0) * 100, 1
 Plan data is ALWAYS available — always use INNER JOIN or LEFT JOIN between the two CTEs.
 
 AERO TOTAL ROW IN t2_plan
-  t2_plan contains a special row where hts_t2 = 'Aero Total'. This is a pre-computed
-  company-wide total. The individual T2 rows already add up to make it — including it
-  alongside the others would double-count.
-  • Overall / company-wide plan query  → WHERE hts_t2 = 'Aero Total'
-  • T2-level breakdown query           → WHERE hts_t2 != 'Aero Total'
-  Never mix both in the same query.
+  t2_plan contains a row where hts_t2 = 'Aero Total' (exact stored value, title case).
+  This is an independently entered company-wide plan figure covering ALL T2 groups.
+  'Aero Total' does NOT exist in the actuals table — no employee row has hts_t2 = 'Aero Total'.
+
+  • T2-level breakdown query  → actuals_agg must inject a synthetic 'Aero Total' row via
+    UNION ALL that sums ALL actuals rows with no hts_t2 filter (company-wide total).
+    Use the exact literal 'Aero Total' so the JOIN matches t2_plan.
+    Individual T2 rows appear first sorted alphabetically; Aero Total appears last.
+
+    actuals_agg pattern:
+      SELECT hts_t2, SUM(billed_hrs) AS total_billed, SUM(std_billable_hours) AS total_std
+      FROM actuals WHERE LOWER(month) IN (...)
+      GROUP BY hts_t2
+      UNION ALL
+      SELECT 'Aero Total', SUM(billed_hrs), SUM(std_billable_hours)
+      FROM actuals WHERE LOWER(month) IN (...)
+
+    JOIN on:  LOWER(a.hts_t2) = LOWER(p.hts_t2)
+    ORDER BY: CASE WHEN LOWER(a.hts_t2) = 'aero total' THEN 1 ELSE 0 END, a.hts_t2
+
+  • Overall / company-wide only query  → no UNION ALL needed; filter actuals normally
+    and plan_agg with WHERE LOWER(hts_t2) = 'aero total'
 
 ══════════════════════════════════
 FOUR SQL PATTERNS — USE EXACTLY
@@ -243,7 +259,7 @@ WITH actuals_agg AS (
            SUM(billed_hrs)         AS total_billed,
            SUM(std_billable_hours) AS total_std
     FROM actuals
-    WHERE month IN ({ytd_months_str})
+    WHERE LOWER(month) IN ({ytd_months_str})
     GROUP BY <dim_col>
 ),
 plan_agg AS (
@@ -251,7 +267,7 @@ plan_agg AS (
            SUM(<plan_numerator>) AS total_planned,
            SUM(<plan_denominator>) AS total_plan_std
     FROM <plan_table>
-    WHERE month IN ({ytd_months_str})
+    WHERE LOWER(month) IN ({ytd_months_str})
     GROUP BY <dim_col>
 )
 SELECT
@@ -269,14 +285,14 @@ PATTERN 2: YTD, month-wise (running cumulative — each month row = Jan through 
 (user says "month-wise", "monthly", "by month", "per month" with YTD or no qualifier)
 ────────────────────────────────
 WITH month_seq AS (
-    SELECT month, CASE month
-        WHEN 'Jan' THEN 1  WHEN 'Feb' THEN 2  WHEN 'Mar' THEN 3
-        WHEN 'Apr' THEN 4  WHEN 'May' THEN 5  WHEN 'Jun' THEN 6
-        WHEN 'Jul' THEN 7  WHEN 'Aug' THEN 8  WHEN 'Sep' THEN 9
-        WHEN 'Oct' THEN 10 WHEN 'Nov' THEN 11 WHEN 'Dec' THEN 12
+    SELECT month, CASE LOWER(month)
+        WHEN 'jan' THEN 1  WHEN 'feb' THEN 2  WHEN 'mar' THEN 3
+        WHEN 'apr' THEN 4  WHEN 'may' THEN 5  WHEN 'jun' THEN 6
+        WHEN 'jul' THEN 7  WHEN 'aug' THEN 8  WHEN 'sep' THEN 9
+        WHEN 'oct' THEN 10 WHEN 'nov' THEN 11 WHEN 'dec' THEN 12
     END AS n
-    FROM (VALUES ('Jan'),('Feb'),('Mar'),('Apr'),('May'),('Jun'),
-                 ('Jul'),('Aug'),('Sep'),('Oct'),('Nov'),('Dec')) t(month)
+    FROM (VALUES ('jan'),('feb'),('mar'),('apr'),('may'),('jun'),
+                 ('jul'),('aug'),('sep'),('oct'),('nov'),('dec')) t(month)
 ),
 ytd_anchors AS (
     SELECT month, n FROM month_seq WHERE month IN ({ytd_months_str})
@@ -286,9 +302,9 @@ actuals_cumulative AS (
            SUM(a.billed_hrs)         AS cum_billed,
            SUM(a.std_billable_hours) AS cum_std
     FROM actuals a
-    JOIN month_seq ms  ON ms.month = a.month
+    JOIN month_seq ms  ON ms.month = LOWER(a.month)
     JOIN ytd_anchors anc ON ms.n <= anc.n
-    WHERE a.month IN ({ytd_months_str})
+    WHERE LOWER(a.month) IN ({ytd_months_str})
     GROUP BY anc.month, anc.n, a.<dim_col>
 ),
 plan_cumulative AS (
@@ -296,9 +312,9 @@ plan_cumulative AS (
            SUM(p.<plan_numerator>)   AS cum_planned,
            SUM(p.<plan_denominator>) AS cum_plan_std
     FROM <plan_table> p
-    JOIN month_seq ms  ON ms.month = p.month
+    JOIN month_seq ms  ON ms.month = LOWER(p.month)
     JOIN ytd_anchors anc ON ms.n <= anc.n
-    WHERE p.month IN ({ytd_months_str})
+    WHERE LOWER(p.month) IN ({ytd_months_str})
     GROUP BY anc.month, anc.n, p.<dim_col>
 )
 SELECT
@@ -322,7 +338,7 @@ WITH actuals_agg AS (
            SUM(billed_hrs)         AS total_billed,
            SUM(std_billable_hours) AS total_std
     FROM actuals
-    WHERE month = '<target_month>'
+    WHERE LOWER(month) = LOWER('<target_month>')
     GROUP BY <dim_col>
 ),
 plan_agg AS (
@@ -330,7 +346,7 @@ plan_agg AS (
            SUM(<plan_numerator>)   AS total_planned,
            SUM(<plan_denominator>) AS total_plan_std
     FROM <plan_table>
-    WHERE month = '<target_month>'
+    WHERE LOWER(month) = LOWER('<target_month>')
     GROUP BY <dim_col>
 )
 SELECT
@@ -352,7 +368,7 @@ WITH actuals_agg AS (
            SUM(billed_hrs)         AS total_billed,
            SUM(std_billable_hours) AS total_std
     FROM actuals
-    WHERE month IN ({available_months_str})
+    WHERE LOWER(month) IN ({available_months_str})
     GROUP BY month, <dim_col>
 ),
 plan_agg AS (
@@ -360,7 +376,7 @@ plan_agg AS (
            SUM(<plan_numerator>)   AS total_planned,
            SUM(<plan_denominator>) AS total_plan_std
     FROM <plan_table>
-    WHERE month IN ({available_months_str})
+    WHERE LOWER(month) IN ({available_months_str})
     GROUP BY month, <dim_col>
 )
 SELECT
@@ -380,14 +396,14 @@ OTHER RULES
 
 ACTUALS-ONLY QUERIES (no plan involved)
   • Follow the same CTE structure but with only the actuals CTE — no plan CTE needed.
-  • YTD: WHERE month IN ({ytd_months_str})
-  • MTD: WHERE month = '{latest_month}' (or named month)
+  • YTD: WHERE LOWER(month) IN ({ytd_months_str})
+  • MTD: WHERE LOWER(month) = '{latest_month.lower()}' (or named month)
   • Month-wise: GROUP BY month, <dim_col>
 
 YTD WITH WEEKLY BREAKDOWN (week-level time series + YTD date range)
   • Use YTD as a date filter only. Return one row per weekend_date.
   • Each week row shows that week's own metric — no cumulation across weeks.
-  • WHERE month IN ({ytd_months_str}), GROUP BY weekend_date, <dim_col>
+  • WHERE LOWER(month) IN ({ytd_months_str}), GROUP BY weekend_date, <dim_col>
 
 MULTI-ROW EMPLOYEES
   • An employee can have multiple rows per week across different cost centers.
@@ -405,4 +421,14 @@ SQL STYLE RULES
   • Order results logically: by month order, then alphabetically by dimension.
   • Do not add LIMIT unless the user explicitly asks for "top N" results.
   • CTE aliases: use descriptive names (actuals_agg, plan_agg, actuals_cumulative, plan_cumulative).
+
+CASE-INSENSITIVE FILTERING
+  • For ALL string WHERE clause comparisons, wrap BOTH sides in LOWER():
+    CORRECT   → WHERE LOWER(supervisor_name) = LOWER('suchitra k')
+    INCORRECT → WHERE supervisor_name = 'Suchitra K'
+  • This applies to every text column (names, cost centers, org groups, months, etc.)
+    and to both = and LIKE patterns:
+    CORRECT   → WHERE LOWER(employee_name) LIKE LOWER('%john%')
+  • For ORDER BY month sorting, always use CASE LOWER(month) WHEN 'jan' THEN 1 ...
+    with lowercase literals — never mix LOWER() on the column with mixed-case literals.
 """

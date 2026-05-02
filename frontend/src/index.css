@@ -19,8 +19,8 @@
   --badge-plan-text: #991b1b;
   --badge-temporal-bg: #e0e7ff;
   --badge-temporal-text: #3730a3;
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-  font-size: 15px;
+  font-family: 'Calibri', 'Aptos Narrow', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 16px;
   line-height: 1.6;
   color: var(--text);
   background: var(--bg);
@@ -173,11 +173,11 @@ body {
 /* ── Suggestion cards (sidebar) ────────────────────────────────── */
 .suggestions-label {
   margin: 0;
-  font-size: 11px;
+  font-size: 16px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  color: var(--text-muted);
+  letter-spacing: 0.3px;
+  color: var(--accent);
+  padding-left: 10px;
 }
 
 .suggestion-card {
@@ -213,7 +213,7 @@ body {
 }
 
 .suggestion-card-label {
-  font-size: 12.5px;
+  font-size: 12px;
   color: var(--text);
   line-height: 1.4;
   font-weight: 400;
@@ -282,12 +282,12 @@ body {
     transform: translateY(-50%) scale(0.95);
     box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
   }
-  
+
   70% {
     transform: translateY(-50%) scale(1);
     box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
   }
-  
+
   100% {
     transform: translateY(-50%) scale(0.95);
     box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
@@ -341,6 +341,55 @@ body {
   border-radius: 8px;
   color: #b91c1c;
   font-size: 14px;
+}
+
+/* ── Empty state ───────────────────────────────────────────────── */
+.empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 60px 24px;
+  gap: 16px;
+  min-height: 100%;
+}
+
+.empty-state-icon {
+  margin-bottom: 4px;
+}
+
+.empty-state-heading {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.2px;
+}
+
+.empty-state-sub {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.7;
+}
+
+.empty-state-hints {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.empty-state-hint {
+  font-size: 12.5px;
+  color: var(--accent);
+  background: #ede9fe;
+  border-radius: 20px;
+  padding: 5px 14px;
+  font-weight: 500;
 }
 
 /* ── Results ───────────────────────────────────────────────────── */
@@ -802,6 +851,50 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.6px;
   color: var(--text-muted);
+}
+
+/* PDF download button */
+.pdf-download-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.pdf-download-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.pdf-download-btn:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.pdf-download-btn--busy,
+.pdf-download-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.pdf-download-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
 }
 
 /* Blinking cursor that appears while narrative is still streaming */

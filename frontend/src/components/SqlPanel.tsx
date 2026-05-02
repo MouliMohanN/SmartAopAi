@@ -6,15 +6,22 @@
 // Includes a copy-to-clipboard button.
 // -----------------------------------------------------------------------------
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface Props {
   sql: string;
+  defaultOpen?: boolean;
 }
 
-export function SqlPanel({ sql }: Props) {
-  const [open,    setOpen]    = useState(true);
+export function SqlPanel({ sql, defaultOpen = true }: Props) {
+  const [open,    setOpen]    = useState(defaultOpen);
   const [copied,  setCopied]  = useState(false);
+
+  useEffect(() => {
+    if (!defaultOpen) {
+      setOpen(false);
+    }
+  }, [defaultOpen]);
 
   const handleCopy = async () => {
     try {

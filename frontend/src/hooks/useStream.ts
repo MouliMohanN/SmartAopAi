@@ -80,6 +80,19 @@ export interface StepEntry {
 
 export type StreamStatus = 'idle' | 'loading' | 'done' | 'error';
 
+export interface Interaction {
+  id: string;
+  query: string;
+  status: StreamStatus;
+  sql: string | null;
+  result: QueryResponse | null;
+  narrative: string;
+  narrativeDone: boolean;
+  error: string | null;
+  steps: StepEntry[];
+  currentStepMsg: string | null;
+}
+
 const TRACKER_OPEN_KEY = 'smartaop_tracker_open';
 
 function readTrackerPref(): boolean {
@@ -98,25 +111,16 @@ function writeTrackerPref(value: boolean): void {
 }
 
 export function useStream() {
-  const [status,           setStatus]           = useState<StreamStatus>('idle');
-  const [sql,              setSql]              = useState<string | null>(null);
-  const [result,           setResult]           = useState<QueryResponse | null>(null);
-  const [narrative,        setNarrative]        = useState<string>('');
-  const [narrativeDone,    setNarrativeDone]    = useState(false);
-  const [error,            setError]            = useState<string | null>(null);
-  const [lastQuery,        setLastQuery]        = useState<string>('');
-  const [steps,            setSteps]            = useState<StepEntry[]>([]);
-  const [currentStepMsg,   setCurrentStepMsg]   = useState<string | null>(null);
-  const [trackerOpen,      setTrackerOpen]      = useState<boolean>(readTrackerPref);
+  const [interactions, setInteractions] = useState<Interaction[]>([]);
   const sqlRotatorRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sqlStreamStarted = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  const toggleTracker = useCallback(() => {
-    setTrackerOpen(prev => {
-      const next = !prev;
-      writeTrackerPref(next);
-      return next;
+  const updateLastInteraction = useCallback((updater: (prev: Interaction) => Interaction) => {
+    setInteractions(prev => {
+      if (prev.length === 0) return prev;
+      const lastIdx = prev.length - 1;
+      return [...prev.slice(0, lastIdx), updater(prev[lastIdx])];
     });
   }, []);
 
@@ -126,15 +130,20 @@ export function useStream() {
       clearTimeout(sqlRotatorRef.current);
       sqlRotatorRef.current = null;
     }
-    setStatus('loading');
-    setSql(null);
-    setResult(null);
-    setNarrative('');
-    setNarrativeDone(false);
-    setError(null);
-    setLastQuery(query);
-    setSteps([]);
-    setCurrentStepMsg(null);
+    const newInteraction: Interaction = {
+      id: Date.now().toString() + Math.random().toString(36).slice(2),
+      query,
+      status: 'loading',
+      sql: null,
+      result: null,
+      narrative: '',
+      narrativeDone: false,
+      error: null,
+      steps: [],
+      currentStepMsg: null,
+    };
+    
+    setInteractions(prev => [...prev, newInteraction]);
     sqlStreamStarted.current = false;
 
     if (abortControllerRef.current) {
@@ -151,27 +160,28 @@ export function useStream() {
             if (stepId === 'generating_sql') {
               // Kick off rotating messages for the slow SQL generation step
               const first = pickOther(SQL_THINKING_MESSAGES, null);
-              setCurrentStepMsg(first);
+              updateLastInteraction(last => ({ ...last, currentStepMsg: first }));
 
               const schedule = (current: string) => {
                 const delay = 3000 + Math.random() * 4000; // 3–7 s
                 sqlRotatorRef.current = setTimeout(() => {
                   const next = pickOther(SQL_THINKING_MESSAGES, current);
-                  setCurrentStepMsg(next);
+                  updateLastInteraction(last => ({ ...last, currentStepMsg: next }));
                   schedule(next);
                 }, delay);
               };
               schedule(first);
             } else {
-              setCurrentStepMsg(message ?? null);
+              updateLastInteraction(last => ({ ...last, currentStepMsg: message ?? null }));
             }
 
-            setSteps(prev => {
-              const exists = prev.some(s => s.id === stepId);
+            updateLastInteraction(last => {
+              const exists = last.steps.some(s => s.id === stepId);
               const entry: StepEntry = { id: stepId, message: message ?? stepId, status: 'active' };
-              return exists
-                ? prev.map(s => s.id === stepId ? entry : s)
-                : [...prev, entry];
+              const nextSteps = exists
+                ? last.steps.map(s => s.id === stepId ? entry : s)
+                : [...last.steps, entry];
+              return { ...last, steps: nextSteps };
             });
           } else {
             if (stepId === 'generating_sql') {
@@ -181,10 +191,11 @@ export function useStream() {
                 sqlRotatorRef.current = null;
               }
             }
-            setCurrentStepMsg(null);
-            setSteps(prev =>
-              prev.map(s => s.id === stepId ? { ...s, status: stepStatus } : s)
-            );
+            updateLastInteraction(last => ({
+              ...last,
+              currentStepMsg: null,
+              steps: last.steps.map(s => s.id === stepId ? { ...s, status: stepStatus } : s)
+            }));
           }
         },
 
@@ -195,48 +206,65 @@ export function useStream() {
               clearTimeout(sqlRotatorRef.current);
               sqlRotatorRef.current = null;
             }
-            setCurrentStepMsg(null);
+            updateLastInteraction(last => ({ ...last, currentStepMsg: null }));
           }
-          setSql(prev => (prev ?? '') + token);
+          updateLastInteraction(last => ({ ...last, sql: (last.sql ?? '') + token }));
         },
 
         onSqlDone: (cleanSql) => {
           console.debug('[useStream] onSqlDone:', cleanSql);
-          setSql(cleanSql);
+          updateLastInteraction(last => ({ ...last, sql: cleanSql }));
         },
 
         onResult: (data) => {
           console.debug('[useStream] onResult received with', data.rows.length, 'rows');
-          setResult({
-            columns:        data.columns,
-            rows:           data.rows,
-            row_count:      data.row_count,
-            chart_hint:     data.chart_hint,
-            plan_available: data.plan_available,
-            temporal_mode:  data.temporal_mode,
-            sql:            data.sql,
-            error:          data.error,
+          updateLastInteraction(last => {
+            const nextResult = {
+              columns:        data.columns,
+              rows:           data.rows,
+              row_count:      data.row_count,
+              chart_hint:     data.chart_hint,
+              plan_available: data.plan_available,
+              temporal_mode:  data.temporal_mode,
+              sql:            data.sql,
+              error:          data.error,
+            };
+            
+            let nextError = last.error;
+            if (data.error) nextError = data.error;
+
+            let nextStatus = last.status;
+            let nextNarrativeDone = last.narrativeDone;
+            if (data.rows.length === 0) {
+              nextStatus = 'done';
+              nextNarrativeDone = true;
+            }
+
+            return {
+              ...last,
+              result: nextResult,
+              error: nextError,
+              status: nextStatus,
+              narrativeDone: nextNarrativeDone,
+            };
           });
-
-          if (data.error) {
-            setError(data.error);
-          }
-
-          if (data.rows.length === 0) {
-            setStatus('done');
-            setNarrativeDone(true);
-          }
         },
 
         onToken: (text) => {
-          setStatus('done');
-          setNarrative(prev => prev + text);
+          updateLastInteraction(last => ({
+            ...last,
+            status: 'done',
+            narrative: last.narrative + text
+          }));
         },
 
         onDone: () => {
           console.log('[useStream] onDone: Stream completed normally');
-          setStatus('done');
-          setNarrativeDone(true);
+          updateLastInteraction(last => ({
+            ...last,
+            status: 'done',
+            narrativeDone: true
+          }));
         },
 
         onError: (message) => {
@@ -245,9 +273,12 @@ export function useStream() {
             clearTimeout(sqlRotatorRef.current);
             sqlRotatorRef.current = null;
           }
-          setError(message);
-          setStatus('error');
-          setNarrativeDone(true);
+          updateLastInteraction(last => ({
+            ...last,
+            error: message,
+            status: 'error',
+            narrativeDone: true
+          }));
         },
       }, controller.signal);
     } catch (e: unknown) {
@@ -256,9 +287,12 @@ export function useStream() {
         clearTimeout(sqlRotatorRef.current);
         sqlRotatorRef.current = null;
       }
-      setError(e instanceof Error ? e.message : 'An unexpected error occurred.');
-      setStatus('error');
-      setNarrativeDone(true);
+      updateLastInteraction(last => ({
+        ...last,
+        error: e instanceof Error ? e.message : 'An unexpected error occurred.',
+        status: 'error',
+        narrativeDone: true
+      }));
     }
   }, []);
 
@@ -269,21 +303,11 @@ export function useStream() {
     }
   }, []);
 
-  const loading = status === 'loading';
+  const loading = interactions.length > 0 && interactions[interactions.length - 1].status === 'loading';
 
   return {
-    status,
-    sql,
-    result,
-    narrative,
-    narrativeDone,
-    error,
-    lastQuery,
+    interactions,
     loading,
-    steps,
-    currentStepMsg,
-    trackerOpen,
-    toggleTracker,
     submit,
     abort,
   };

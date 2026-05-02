@@ -119,8 +119,47 @@ body {
   padding: 24px 28px;
 }
 
-.app-main > * + * {
-  margin-top: 16px;
+/* ── Chat Layout ───────────────────────────────────────────────── */
+.chat-history {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  padding-bottom: 40px;
+}
+
+.interaction-pair {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.chat-message {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.chat-message.user {
+  align-items: flex-end;
+}
+
+.chat-message.user .bubble {
+  background: var(--accent);
+  color: white;
+  padding: 12px 20px;
+  border-radius: 20px 20px 4px 20px;
+  font-size: 15.5px;
+  line-height: 1.5;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+  max-width: 85%;
+}
+
+.chat-message.assistant {
+  align-items: stretch;
+  gap: 16px;
 }
 
 /* ── Sticky bottom input bar ────────────────────────────────────── */

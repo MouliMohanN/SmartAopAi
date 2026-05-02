@@ -21,14 +21,22 @@ const SUGGESTIONS = [
 
 export default function App() {
   const {
-    sql, result, narrative, narrativeDone,
-    error, loading,
-    steps, currentStepMsg, trackerOpen, toggleTracker,
+    interactions, loading,
     submit, abort,
   } = useStream();
 
   const [queryValue, setQueryValue] = useState('');
   const queryInputRef = useRef<QueryInputHandle>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  const handleSubmit = (query: string) => {
+    setQueryValue('');
+    submit(query);
+  };
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [interactions]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -57,7 +65,7 @@ export default function App() {
                 key={s.label}
                 type="button"
                 className="suggestion-card"
-                onClick={() => { setQueryValue(s.label); queryInputRef.current?.focus(); }}
+                onClick={() => { queryInputRef.current?.focus(); handleSubmit(s.label); }}
                 disabled={loading}
               >
                 <span className="suggestion-card-icon">{s.icon}</span>
@@ -69,34 +77,51 @@ export default function App() {
 
         {/* ── Main content ── */}
         <div className="app-content">
-          <main className="app-main">
-            {error && (
-              <div className="error-banner">
-                <strong>Error:</strong> {error}
-              </div>
-            )}
+          <main className="app-main chat-history">
+            {interactions.map((interaction, idx) => {
+              const isLatest = idx === interactions.length - 1;
+              const isLoading = interaction.status === 'loading';
 
-            {loading && <ResultSkeleton message={currentStepMsg} />}
+              return (
+                <div key={interaction.id} className="interaction-pair">
+                  <div className="chat-message user">
+                    <div className="bubble">{interaction.query}</div>
+                  </div>
 
-            {sql && <SqlPanel sql={sql} />}
+                  <div className="chat-message assistant">
+                    {interaction.error && (
+                      <div className="error-banner">
+                        <strong>Error:</strong> {interaction.error}
+                      </div>
+                    )}
 
-            {steps.length > 0 && (
-              <StepTracker
-                steps={steps}
-                open={trackerOpen}
-                onToggle={toggleTracker}
-                isLoading={loading}
-                activeMessage={currentStepMsg}
-              />
-            )}
+                    {isLoading && <ResultSkeleton message={interaction.currentStepMsg} />}
 
-            {!loading && result && !result.error && (
-              <div className="result-section slide-in">
-                <ResultChart result={result} />
-                <ResultTable result={result} />
-                <NarrativePanel text={narrative} done={narrativeDone} />
-              </div>
-            )}
+                    {interaction.sql && (
+                      <SqlPanel sql={interaction.sql} defaultOpen={isLatest} />
+                    )}
+
+                    {interaction.steps.length > 0 && (
+                      <StepTracker
+                        steps={interaction.steps}
+                        defaultOpen={isLatest}
+                        isLoading={isLoading}
+                        activeMessage={interaction.currentStepMsg}
+                      />
+                    )}
+
+                    {!isLoading && interaction.result && !interaction.result.error && (
+                      <div className="result-section slide-in">
+                        <ResultChart result={interaction.result} />
+                        <ResultTable result={interaction.result} />
+                        <NarrativePanel text={interaction.narrative} done={interaction.narrativeDone} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            <div ref={chatEndRef} />
           </main>
 
           <div className="query-bar">
@@ -104,7 +129,7 @@ export default function App() {
               ref={queryInputRef}
               value={queryValue}
               onChange={setQueryValue}
-              onSubmit={submit}
+              onSubmit={handleSubmit}
               onAbort={abort}
               loading={loading}
             />

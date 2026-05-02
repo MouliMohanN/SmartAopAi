@@ -1,9 +1,9 @@
+import { useState, useEffect } from 'react';
 import type { StepEntry } from '../hooks/useStream';
 
 interface Props {
   steps:         StepEntry[];
-  open:          boolean;
-  onToggle:      () => void;
+  defaultOpen?:  boolean;
   isLoading:     boolean;
   activeMessage: string | null;
 }
@@ -23,8 +23,18 @@ function StepIcon({ status }: { status: StepEntry['status'] }) {
   return                          <span className="step-icon step-icon--error"  aria-label="error">✕</span>;
 }
 
-export function StepTracker({ steps, open, onToggle, isLoading, activeMessage }: Props) {
+export function StepTracker({ steps, defaultOpen = true, isLoading, activeMessage }: Props) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  useEffect(() => {
+    if (!defaultOpen) {
+      setOpen(false);
+    }
+  }, [defaultOpen]);
+
   if (steps.length === 0) return null;
+  
+  const onToggle = () => setOpen(o => !o);
 
   const doneCount   = steps.filter(s => s.status === 'done').length;
   const totalSteps  = isLoading ? '…' : String(steps.length);

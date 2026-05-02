@@ -101,17 +101,17 @@ def build_system_prompt(conn) -> str:
     available_months = _get_available_months(conn)
     ytd_months     = get_ytd_months(latest_month)
 
-    # Format month lists as quoted SQL strings for easy inclusion in WHERE clauses
-    available_months_str = ", ".join(f"'{m}'" for m in available_months)
-    ytd_months_str       = ", ".join(f"'{m}'" for m in ytd_months)
+    # Format month lists as lowercase quoted SQL strings for case-insensitive WHERE clauses
+    available_months_str = ", ".join(f"'{m.lower()}'" for m in available_months)
+    ytd_months_str       = ", ".join(f"'{m.lower()}'" for m in ytd_months)
 
-    # The month ordering CASE expression — used for correct ORDER BY in SQL
+    # The month ordering CASE expression — uses LOWER(month) to match lowercase literals
     month_case = (
-        "CASE month "
-        "WHEN 'Jan' THEN 1  WHEN 'Feb' THEN 2  WHEN 'Mar' THEN 3  "
-        "WHEN 'Apr' THEN 4  WHEN 'May' THEN 5  WHEN 'Jun' THEN 6  "
-        "WHEN 'Jul' THEN 7  WHEN 'Aug' THEN 8  WHEN 'Sep' THEN 9  "
-        "WHEN 'Oct' THEN 10 WHEN 'Nov' THEN 11 WHEN 'Dec' THEN 12 END"
+        "CASE LOWER(month) "
+        "WHEN 'jan' THEN 1  WHEN 'feb' THEN 2  WHEN 'mar' THEN 3  "
+        "WHEN 'apr' THEN 4  WHEN 'may' THEN 5  WHEN 'jun' THEN 6  "
+        "WHEN 'jul' THEN 7  WHEN 'aug' THEN 8  WHEN 'sep' THEN 9  "
+        "WHEN 'oct' THEN 10 WHEN 'nov' THEN 11 WHEN 'dec' THEN 12 END"
     )
 
     return f"""You are a SQL expert for an employee utilization analytics system.
@@ -191,12 +191,12 @@ DEFAULT (no temporal keyword in query) → treat as YTD
   Never return only the latest month unless the user explicitly says "MTD" or names a specific month.
 
 MTD — single month snapshot, never cumulative
-  • "MTD" or "this month" with no month named → month = '{latest_month}'
-  • "April MTD"                                → month = 'Apr'
+  • "MTD" or "this month" with no month named → LOWER(month) = '{latest_month.lower()}'
+  • "April MTD"                                → LOWER(month) = 'apr'
 
 YTD — always cumulative (Jan through specified or latest month)
-  • "YTD" with no month named  → months IN ({ytd_months_str})
-  • "April YTD"                → months IN ('Jan','Feb','Mar','Apr')
+  • "YTD" with no month named  → LOWER(month) IN ({ytd_months_str})
+  • "April YTD"                → LOWER(month) IN ('jan','feb','mar','apr')
   • Always SUM the raw numerator and denominator across all included months, then divide once.
     CORRECT   → SUM(billed_hrs) / NULLIF(SUM(std_billable_hours), 0)
     INCORRECT → AVG(monthly_util_pct)
@@ -322,7 +322,7 @@ WITH actuals_agg AS (
            SUM(billed_hrs)         AS total_billed,
            SUM(std_billable_hours) AS total_std
     FROM actuals
-    WHERE month = '<target_month>'
+    WHERE LOWER(month) = LOWER('<target_month>')
     GROUP BY <dim_col>
 ),
 plan_agg AS (
@@ -330,7 +330,7 @@ plan_agg AS (
            SUM(<plan_numerator>)   AS total_planned,
            SUM(<plan_denominator>) AS total_plan_std
     FROM <plan_table>
-    WHERE month = '<target_month>'
+    WHERE LOWER(month) = LOWER('<target_month>')
     GROUP BY <dim_col>
 )
 SELECT
@@ -380,14 +380,14 @@ OTHER RULES
 
 ACTUALS-ONLY QUERIES (no plan involved)
   • Follow the same CTE structure but with only the actuals CTE — no plan CTE needed.
-  • YTD: WHERE month IN ({ytd_months_str})
-  • MTD: WHERE month = '{latest_month}' (or named month)
+  • YTD: WHERE LOWER(month) IN ({ytd_months_str})
+  • MTD: WHERE LOWER(month) = '{latest_month.lower()}' (or named month)
   • Month-wise: GROUP BY month, <dim_col>
 
 YTD WITH WEEKLY BREAKDOWN (week-level time series + YTD date range)
   • Use YTD as a date filter only. Return one row per weekend_date.
   • Each week row shows that week's own metric — no cumulation across weeks.
-  • WHERE month IN ({ytd_months_str}), GROUP BY weekend_date, <dim_col>
+  • WHERE LOWER(month) IN ({ytd_months_str}), GROUP BY weekend_date, <dim_col>
 
 MULTI-ROW EMPLOYEES
   • An employee can have multiple rows per week across different cost centers.
@@ -405,4 +405,14 @@ SQL STYLE RULES
   • Order results logically: by month order, then alphabetically by dimension.
   • Do not add LIMIT unless the user explicitly asks for "top N" results.
   • CTE aliases: use descriptive names (actuals_agg, plan_agg, actuals_cumulative, plan_cumulative).
+
+CASE-INSENSITIVE FILTERING
+  • For ALL string WHERE clause comparisons, wrap BOTH sides in LOWER():
+    CORRECT   → WHERE LOWER(supervisor_name) = LOWER('suchitra k')
+    INCORRECT → WHERE supervisor_name = 'Suchitra K'
+  • This applies to every text column (names, cost centers, org groups, months, etc.)
+    and to both = and LIKE patterns:
+    CORRECT   → WHERE LOWER(employee_name) LIKE LOWER('%john%')
+  • For ORDER BY month sorting, always use CASE LOWER(month) WHEN 'jan' THEN 1 ...
+    with lowercase literals — never mix LOWER() on the column with mixed-case literals.
 """

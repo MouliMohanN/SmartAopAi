@@ -223,12 +223,13 @@ Plan Util % is ALWAYS: ROUND(SUM(planned_hrs) / NULLIF(SUM(std_hrs), 0) * 100, 1
 Plan data is ALWAYS available — always use INNER JOIN or LEFT JOIN between the two CTEs.
 
 AERO TOTAL ROW IN t2_plan
-  t2_plan contains a special row where hts_t2 = 'Aero Total'. This is a pre-computed
-  company-wide total. The individual T2 rows already add up to make it — including it
-  alongside the others would double-count.
-  • Overall / company-wide plan query  → WHERE hts_t2 = 'Aero Total'
-  • T2-level breakdown query           → WHERE hts_t2 != 'Aero Total'
-  Never mix both in the same query.
+  t2_plan contains a row where hts_t2 = 'Aero Total'. This is an independently entered
+  company-wide plan figure — it is NOT derived from the other T2 rows, so there is no
+  double-count risk.
+  • T2-level breakdown query  → include ALL rows (no filter on hts_t2).
+    Individual T2 rows appear first sorted alphabetically; Aero Total appears last.
+    Achieve this with: ORDER BY CASE WHEN LOWER(hts_t2) = 'aero total' THEN 1 ELSE 0 END, hts_t2
+  • Overall / company-wide only query  → WHERE LOWER(hts_t2) = 'aero total'
 
 ══════════════════════════════════
 FOUR SQL PATTERNS — USE EXACTLY
@@ -243,7 +244,7 @@ WITH actuals_agg AS (
            SUM(billed_hrs)         AS total_billed,
            SUM(std_billable_hours) AS total_std
     FROM actuals
-    WHERE month IN ({ytd_months_str})
+    WHERE LOWER(month) IN ({ytd_months_str})
     GROUP BY <dim_col>
 ),
 plan_agg AS (
@@ -251,7 +252,7 @@ plan_agg AS (
            SUM(<plan_numerator>) AS total_planned,
            SUM(<plan_denominator>) AS total_plan_std
     FROM <plan_table>
-    WHERE month IN ({ytd_months_str})
+    WHERE LOWER(month) IN ({ytd_months_str})
     GROUP BY <dim_col>
 )
 SELECT
@@ -269,14 +270,14 @@ PATTERN 2: YTD, month-wise (running cumulative — each month row = Jan through 
 (user says "month-wise", "monthly", "by month", "per month" with YTD or no qualifier)
 ────────────────────────────────
 WITH month_seq AS (
-    SELECT month, CASE month
-        WHEN 'Jan' THEN 1  WHEN 'Feb' THEN 2  WHEN 'Mar' THEN 3
-        WHEN 'Apr' THEN 4  WHEN 'May' THEN 5  WHEN 'Jun' THEN 6
-        WHEN 'Jul' THEN 7  WHEN 'Aug' THEN 8  WHEN 'Sep' THEN 9
-        WHEN 'Oct' THEN 10 WHEN 'Nov' THEN 11 WHEN 'Dec' THEN 12
+    SELECT month, CASE LOWER(month)
+        WHEN 'jan' THEN 1  WHEN 'feb' THEN 2  WHEN 'mar' THEN 3
+        WHEN 'apr' THEN 4  WHEN 'may' THEN 5  WHEN 'jun' THEN 6
+        WHEN 'jul' THEN 7  WHEN 'aug' THEN 8  WHEN 'sep' THEN 9
+        WHEN 'oct' THEN 10 WHEN 'nov' THEN 11 WHEN 'dec' THEN 12
     END AS n
-    FROM (VALUES ('Jan'),('Feb'),('Mar'),('Apr'),('May'),('Jun'),
-                 ('Jul'),('Aug'),('Sep'),('Oct'),('Nov'),('Dec')) t(month)
+    FROM (VALUES ('jan'),('feb'),('mar'),('apr'),('may'),('jun'),
+                 ('jul'),('aug'),('sep'),('oct'),('nov'),('dec')) t(month)
 ),
 ytd_anchors AS (
     SELECT month, n FROM month_seq WHERE month IN ({ytd_months_str})
@@ -286,9 +287,9 @@ actuals_cumulative AS (
            SUM(a.billed_hrs)         AS cum_billed,
            SUM(a.std_billable_hours) AS cum_std
     FROM actuals a
-    JOIN month_seq ms  ON ms.month = a.month
+    JOIN month_seq ms  ON ms.month = LOWER(a.month)
     JOIN ytd_anchors anc ON ms.n <= anc.n
-    WHERE a.month IN ({ytd_months_str})
+    WHERE LOWER(a.month) IN ({ytd_months_str})
     GROUP BY anc.month, anc.n, a.<dim_col>
 ),
 plan_cumulative AS (
@@ -296,9 +297,9 @@ plan_cumulative AS (
            SUM(p.<plan_numerator>)   AS cum_planned,
            SUM(p.<plan_denominator>) AS cum_plan_std
     FROM <plan_table> p
-    JOIN month_seq ms  ON ms.month = p.month
+    JOIN month_seq ms  ON ms.month = LOWER(p.month)
     JOIN ytd_anchors anc ON ms.n <= anc.n
-    WHERE p.month IN ({ytd_months_str})
+    WHERE LOWER(p.month) IN ({ytd_months_str})
     GROUP BY anc.month, anc.n, p.<dim_col>
 )
 SELECT
@@ -352,7 +353,7 @@ WITH actuals_agg AS (
            SUM(billed_hrs)         AS total_billed,
            SUM(std_billable_hours) AS total_std
     FROM actuals
-    WHERE month IN ({available_months_str})
+    WHERE LOWER(month) IN ({available_months_str})
     GROUP BY month, <dim_col>
 ),
 plan_agg AS (
@@ -360,7 +361,7 @@ plan_agg AS (
            SUM(<plan_numerator>)   AS total_planned,
            SUM(<plan_denominator>) AS total_plan_std
     FROM <plan_table>
-    WHERE month IN ({available_months_str})
+    WHERE LOWER(month) IN ({available_months_str})
     GROUP BY month, <dim_col>
 )
 SELECT

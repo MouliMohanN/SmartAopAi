@@ -21,7 +21,7 @@
 
 ## 1. Project Purpose
 
-SmartAopAi enables non-technical business stakeholders to query employee utilization and project allocation data using plain English. The system:
+SmartAopAi enables non-technical business stakeholders to query employee utilization and project allocation data using natural language. The system:
 
 - Converts natural language questions into SQL via a local LLM
 - Executes SQL against a DuckDB analytical database loaded from Excel files

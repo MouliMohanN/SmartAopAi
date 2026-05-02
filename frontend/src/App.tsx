@@ -83,6 +83,29 @@ export default function App() {
         {/* ── Main content ── */}
         <div className="app-content">
           <main className="app-main chat-history">
+            {interactions.length === 0 && (
+              <div className="empty-state">
+                <div className="empty-state-icon">
+                  <svg width="48" height="48" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+                    <rect width="48" height="48" rx="14" fill="#ede9fe" />
+                    <path d="M14 24h20M14 17h20M14 31h12" stroke="#6366f1" strokeWidth="2.5" strokeLinecap="round" />
+                    <circle cx="36" cy="31" r="5" fill="#6366f1" />
+                    <path d="M36 28.5v2.5l1.5 1.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </div>
+                <h2 className="empty-state-heading">What would you like to know?</h2>
+                <p className="empty-state-sub">
+                  Ask anything about employee utilization, cost centers, supervisors,<br />
+                  or plan vs actuals — in natural language.
+                </p>
+                <div className="empty-state-hints">
+                  <span className="empty-state-hint">📊 Utilization trends</span>
+                  <span className="empty-state-hint">⚖️ Plan vs actuals</span>
+                  <span className="empty-state-hint">👤 Supervisor performance</span>
+                  <span className="empty-state-hint">🏢 Cost center breakdowns</span>
+                </div>
+              </div>
+            )}
             {interactions.map((interaction, idx) => {
               const isLatest = idx === interactions.length - 1;
               const isLoading = interaction.status === 'loading';

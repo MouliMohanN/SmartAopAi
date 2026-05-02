@@ -83,7 +83,7 @@ body {
 
 /* ── Left sidebar ───────────────────────────────────────────────── */
 .suggestions-sidebar {
-  width: 220px;
+  width: 300px;
   flex-shrink: 0;
   min-height: 0;
   border-right: 1px solid var(--border);
@@ -132,7 +132,7 @@ body {
   flex-direction: column;
   gap: 20px;
   width: 100%;
-  max-width: 1000px;
+  max-width: 1200px;
   margin: 0 auto;
 }
 

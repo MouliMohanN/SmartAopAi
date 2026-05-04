@@ -36,7 +36,7 @@ from pydantic import BaseModel, Field
 
 from backend.db.database import get_connection
 from backend.engine.prompt import build_system_prompt
-from backend.engine.llm import stream_sql, stream_narrative, _extract_sql
+from backend.engine.llm import stream_sql_openrouter as stream_sql, stream_narrative, _extract_sql
 from backend.engine.validator import validate_sql
 from backend.engine.executor import execute_sql, detect_chart_hint, check_plan_available
 

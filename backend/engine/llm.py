@@ -303,3 +303,52 @@ async def stream_sql_nvidia(system_prompt: str, user_query: str) -> AsyncGenerat
 
     except Exception as e:
         raise RuntimeError(f"Error communicating with Nvidia API: {str(e)}")
+
+
+# ── OpenRouter API Integration (Alternative for stream_sql) ─────────────────
+# You can swap `stream_sql` out for `stream_sql_openrouter` to test OpenRouter
+# with the two-pass self-correction logic via streaming.
+
+from openai import AsyncOpenAI
+
+openrouter_client = AsyncOpenAI(
+    base_url="https://openrouter.ai/api/v1",
+    api_key=os.getenv("OPENROUTER_API_KEY", "")
+)
+
+async def stream_sql_openrouter(system_prompt: str, user_query: str) -> AsyncGenerator[str, None]:
+    """
+    Streams the SQL generation from OpenRouter token by token.
+    Yields the content tokens and prints the reasoning tokens to stdout.
+    """
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": f"Generate a DuckDB SQL query for: {user_query}"}
+    ]
+
+    try:
+        # Single streaming API call
+        response = await openrouter_client.chat.completions.create(
+            model="openai/gpt-oss-120b:free",
+            messages=messages,
+            extra_body={"reasoning": {"enabled": True}},
+            stream=True
+        )
+        
+        async for chunk in response:
+            if not getattr(chunk, "choices", None):
+                continue
+            if len(chunk.choices) == 0 or getattr(chunk.choices[0], "delta", None) is None:
+                continue
+                
+            delta = chunk.choices[0].delta
+            reasoning = getattr(delta, "reasoning_content", None)
+            
+            if reasoning:
+                print(f"{_REASONING_COLOR}{reasoning}{_RESET_COLOR}", end="", flush=True)
+                
+            if getattr(delta, "content", None) is not None:
+                yield delta.content
+
+    except Exception as e:
+        raise RuntimeError(f"Error communicating with OpenRouter API: {str(e)}")

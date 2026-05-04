@@ -250,3 +250,56 @@ def check_ollama_reachable() -> bool:
         return any(OLLAMA_MODEL in m for m in models)
     except Exception:
         return False
+
+
+# ── Nvidia API Integration (Alternative to Ollama) ────────────────────────────
+# You can swap `stream_sql` out for `stream_sql_nvidia` to test the Nvidia API.
+
+import sys
+from openai import AsyncOpenAI
+
+_USE_COLOR = sys.stdout.isatty() and os.getenv("NO_COLOR") is None
+_REASONING_COLOR = "\033[90m" if _USE_COLOR else ""
+_RESET_COLOR = "\033[0m" if _USE_COLOR else ""
+
+openai_client = AsyncOpenAI(
+    base_url="https://integrate.api.nvidia.com/v1",
+    api_key=os.getenv("NVIDIA_API_KEY", "")
+)
+
+async def stream_sql_nvidia(system_prompt: str, user_query: str) -> AsyncGenerator[str, None]:
+    """
+    Streams the SQL generation from Nvidia API token by token.
+    Yields the content tokens and prints the reasoning tokens to stdout.
+    """
+    try:
+        completion = await openai_client.chat.completions.create(
+            model="z-ai/glm4.7",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Generate a DuckDB SQL query for: {user_query}"}
+            ],
+            temperature=1,
+            top_p=1,
+            max_tokens=16384,
+            extra_body={"chat_template_kwargs": {"enable_thinking": True, "clear_thinking": False}},
+            stream=True
+        )
+
+        async for chunk in completion:
+            if not getattr(chunk, "choices", None):
+                continue
+            if len(chunk.choices) == 0 or getattr(chunk.choices[0], "delta", None) is None:
+                continue
+                
+            delta = chunk.choices[0].delta
+            reasoning = getattr(delta, "reasoning_content", None)
+            
+            if reasoning:
+                print(f"{_REASONING_COLOR}{reasoning}{_RESET_COLOR}", end="", flush=True)
+                
+            if getattr(delta, "content", None) is not None:
+                yield delta.content
+
+    except Exception as e:
+        raise RuntimeError(f"Error communicating with Nvidia API: {str(e)}")

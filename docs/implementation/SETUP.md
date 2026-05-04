@@ -36,6 +36,7 @@
 | `python-dotenv` | `.env` file loading |
 | `httpx` | HTTP client for Ollama API calls |
 | `pydantic` | Request/response validation |
+| `openai` | Client for streaming SQL from Nvidia API |
 
 ### Frontend packages (npm)
 
@@ -93,6 +94,8 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+> If you are updating an existing setup, make sure to re-run this command to install newly added dependencies like `openai`.
+
 #### 4. Install frontend dependencies
 
 ```bash
@@ -118,7 +121,12 @@ DB_PATH=./data/smartaop.duckdb
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=qwen2.5-coder:32b
 OLLAMA_TIMEOUT=120
+
+# Nvidia API configuration for OpenAI client
+NVIDIA_API_KEY=your_nvidia_api_key_here
 ```
+
+> **Note:** The `NVIDIA_API_KEY` is required for the new streamed SQL generation endpoint. You must obtain an API key from the Nvidia integration portal and add it here.
 
 > `INGEST_DIR` is where you drop the weekly `.xlsx` file. The path above is relative to the project root — it already exists in the repo.
 
@@ -160,6 +168,8 @@ python -m venv .venv
 ```powershell
 pip install -r requirements.txt
 ```
+
+> If you are updating an existing setup, make sure to re-run this command to install newly added dependencies like `openai`.
 
 #### 4. Install frontend dependencies
 
